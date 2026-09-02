@@ -1,0 +1,307 @@
+<!-- Lili Studio - build animations by clicking beats, watch them run, copy the code.
+     NOT shipped to the phone. Build with: node tools/build.js -> tools/studio.built.html -->
+<html><head><meta charset="utf-8">
+<title>Lili Studio</title>
+<style>
+  :root{
+    --bg:#0d0f0c; --panel:#15181300; --ink:#e8ece2; --dim:#8b9382; --rule:#2a3222;
+    --mint:#a5ce7b; --warn:#e0a05a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0d0f0c;color:#e8ece2;font:13px/1.5 Verdana,Arial,sans-serif;display:flex;height:100vh;overflow:hidden}
+
+  /* ---- left: the phone ---- */
+  .stagecol{flex:0 0 400px;padding:16px;display:flex;flex-direction:column;gap:10px;border-right:1px solid #2a3222;overflow:auto}
+  #phone{width:360px;height:640px;position:relative;overflow:hidden;background:#000;border:1px solid #39422f;border-radius:10px;flex:0 0 auto}
+  #wrapper{position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;color:#fff;text-align:center;font-family:Verdana,Arial,sans-serif;transition:opacity 1s}
+  #wrapper .t{font-size:120px;line-height:1;padding-top:6px;letter-spacing:-4px}
+  #wrapper .d{font-size:44px}
+  #wrapper .f{position:absolute;bottom:120px;left:0;width:100%;font-size:26px;color:#ddd}
+  #cat_stage_back{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;z-index:1;pointer-events:none}
+  #cat_props_back{position:absolute;left:0;top:0;width:100%;height:100%}
+  #cat_props_back div{position:absolute;opacity:0;transform-origin:50% 50%}
+  #cat_stage{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;z-index:3;pointer-events:none}
+  #cat_holder{position:absolute;left:0;top:0;width:158px;height:207px;transform-origin:0 0;z-index:5}
+  #cat_holder svg{width:100%;height:100%;overflow:visible}
+  #cat_props{position:absolute;left:0;top:0;width:100%;height:100%}
+  #cat_props div{position:absolute;opacity:0;transform-origin:50% 50%}
+  #cat_hit{position:absolute;pointer-events:none}
+  .readout{font:11px/1.5 monospace;color:#7f7}
+
+  /* ---- middle: the palette ---- */
+  .palette{flex:1 1 auto;padding:16px;overflow:auto;border-right:1px solid #2a3222;min-width:280px}
+  h2{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8b9382;margin:18px 0 8px;font-weight:400}
+  h2:first-child{margin-top:0}
+  .verbs{display:flex;flex-wrap:wrap;gap:5px}
+  .verbs button{background:#181c14;color:#dfe4d6;border:1px solid #39422f;border-radius:5px;padding:6px 9px;font:12px monospace;cursor:pointer}
+  .verbs button:hover{background:#232a1d;border-color:#a5ce7b}
+  .row{display:flex;gap:6px;align-items:center;margin:8px 0}
+  .row label{font-size:11px;color:#8b9382;min-width:74px}
+  input,select{background:#101410;color:#e8ece2;border:1px solid #39422f;border-radius:4px;padding:5px 7px;font:12px monospace}
+  input[type=number]{width:74px}
+
+  /* ---- right: the score ---- */
+  .score{flex:0 0 330px;padding:16px;display:flex;flex-direction:column;gap:8px;overflow:auto}
+  ol{margin:0;padding-left:26px;font:12px monospace;color:#cfd6c4}
+  ol li{margin:2px 0;cursor:pointer}
+  ol li:hover{color:#fff}
+  ol li b{color:#a5ce7b;font-weight:400}
+  textarea{width:100%;height:230px;background:#0a0d09;color:#cfd6c4;border:1px solid #39422f;border-radius:6px;padding:9px;font:11px/1.5 monospace;resize:vertical}
+  .go{display:flex;gap:6px;flex-wrap:wrap}
+  .go button{flex:1 1 auto;background:#1d2417;color:#e8ece2;border:1px solid #4c5a3c;border-radius:6px;padding:9px;font:13px Verdana;cursor:pointer}
+  .go button.primary{background:#2c3a22;border-color:#a5ce7b}
+  .go button:hover{background:#36452a}
+  .hint{font-size:11px;color:#6f7a63;line-height:1.5}
+</style></head><body>
+
+<div class="stagecol">
+  <div id="phone">
+    <div id="cat_stage_back"><div id="cat_props_back"></div></div>
+    <div id="wrapper">
+      <div class="t">09:41</div>
+      <div class="d">вт, 25.08</div>
+      <div class="f">Днём +18°&nbsp;&nbsp;&nbsp;Вечером +16°</div>
+    </div>
+    <div id="cat_stage">
+      <div id="cat_holder"><!--INJECT:CAT_SVG--></div>
+      <div id="cat_props"></div>
+      <div id="cat_hit"></div>
+    </div>
+  </div>
+  <div class="readout" id="readout">ready</div>
+  <div class="hint">The phone above is 360&times;640 CSS pixels &mdash; exactly what the
+  Moto G4 Plus reports. What you see here is what it does there.</div>
+</div>
+
+<div class="palette">
+  <h2>Travel &amp; posture</h2>
+  <div class="verbs" id="v1"></div>
+  <h2>Face &amp; feeling</h2>
+  <div class="verbs" id="v2"></div>
+  <h2>Paws</h2>
+  <div class="verbs" id="v3"></div>
+  <h2>Props</h2>
+  <div class="verbs" id="v4"></div>
+  <h2>Clothes</h2>
+  <div class="verbs" id="v5"></div>
+
+  <h2>Argument for the next beat</h2>
+  <div class="row"><label>number</label><input type="number" id="argN" value="30" step="1"></div>
+  <div class="row"><label>text</label><input type="text" id="argS" value="happy" size="12"></div>
+  <div class="row"><label>x / y</label>
+    <input type="number" id="argX" value="60"><input type="number" id="argY" value="80"></div>
+  <div class="row"><label>prop name</label><input type="text" id="argP" value="cup" size="8">
+    <select id="argArt"></select></div>
+  <div class="row"><label>w% / layer</label>
+    <input type="number" id="argW" value="12">
+    <select id="argZ"><option value="9">front</option><option value="4">behind forecast</option></select></div>
+
+  <h2>Conditions to test against</h2>
+  <div class="row"><label>weather</label>
+    <select id="wxSel">
+      <option value="clear">clear, +18</option>
+      <option value="hot">clear, +29</option>
+      <option value="rain">rain, +9</option>
+      <option value="snow">snow, -4</option>
+      <option value="freeze">clear, -12</option>
+      <option value="storm">thunder</option>
+      <option value="ovc">overcast, +12</option>
+      <option value="wind">windy, 14 m/s</option>
+      <option value="night">clear night</option>
+    </select></div>
+  <div class="row"><label>outfit</label><select id="outSel"></select></div>
+</div>
+
+<div class="score">
+  <h2>The scene</h2>
+  <div class="row"><label>id</label><input type="text" id="sceneId" value="my_scene" size="16"></div>
+  <ol id="list"></ol>
+  <div class="go">
+    <button class="primary" onclick="S.play()">Play</button>
+    <button onclick="S.undo()">Undo</button>
+    <button onclick="S.clear()">Clear</button>
+    <button onclick="S.reset()">Reset Lili</button>
+  </div>
+  <h2>Code &mdash; paste into src/cat/scenes.js</h2>
+  <textarea id="code" readonly></textarea>
+  <div class="go"><button onclick="S.copy()">Copy code</button></div>
+  <div class="hint">Click a beat to add it. Click a line in the list to delete it.
+  Numbers come from the fields on the left, so set those first.</div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------- mocks
+   The studio runs the REAL engine. Only the page around it is faked. */
+var cat_name = 'Lili', cat_debug = false, cat_test = true;
+var cat_quiet_from = '23:00', cat_quiet_to = '06:30', cat_night_dim = 0;
+var cat_work_from = '09:00', cat_work_to = '18:00', cat_work_weekdays = true;
+var cat_lunch_from = '13:00', cat_lunch_to = '14:00';
+var cat_fps = 15, cat_touch = false, cat_activities = false, cat_start_menu = false;
+var expire = 43200, timeout = 3600, retry_steps = [30];
+var day = ['вс','пн','вт','ср','чт','пт','сб'];
+var period = {morning:'утром',day:'днём',evening:'вечером',night:'ночью',day_day:'день',day_night:'ночь'};
+var wind_max = 15, pressure_min = 710, pressure_max = 770, api = '', lat = 0, lon = 0;
+</script>
+
+<!--INJECT:JS_ENGINE-->
+
+<script>
+/* ---------------------------------------------------------------- the studio */
+var S = (function () {
+  var beats = [];
+  var running = null;
+
+  var GROUPS = {
+    v1: [['walkTo','n'],['face','n'],['hop',null],['sit',null],['stand',null],['curl',null],
+         ['loaf',null],['sprawl',null],['stretch',null],['wait','n']],
+    v2: [['look','xy'],['lookAhead',null],['head','n'],['ears','n'],['tail','n'],['blink',null],
+         ['slowBlink',null],['yawn',null],['sneeze',null],['startle',null],['pant',null],
+         ['shake',null],['groom',null],['purr',null],['mouth','s'],['lids','n'],['emote','s']],
+    v3: [['type','n'],['eat','n'],['knead',null],['pawsDown',null],['paw','n']],
+    v4: [['prop','prop'],['propOut','p'],['propTo','xy'],['spin','n'],['sip','p'],['throw','xy']],
+    v5: [['outfit','s'],['wear','s'],['hold','s'],['undress',null]]
+  };
+
+  var WX = {
+    clear:  {code:'skc_d', sky:'skc', precip:null, intensity:0, isThunder:false, isNight:false, temp:18, wind:3, windAngle:180, humidity:55, pressure:750, pressureTrend:0, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    hot:    {code:'skc_d', sky:'skc', precip:null, intensity:0, isThunder:false, isNight:false, temp:29, wind:2, windAngle:180, humidity:40, pressure:752, pressureTrend:0, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    rain:   {code:'ovc_ra', sky:'ovc', precip:'ra', intensity:0, isThunder:false, isNight:false, temp:9, wind:6, windAngle:200, humidity:92, pressure:742, pressureTrend:-4, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    snow:   {code:'ovc_sn', sky:'ovc', precip:'sn', intensity:0, isThunder:false, isNight:false, temp:-4, wind:5, windAngle:200, humidity:88, pressure:748, pressureTrend:-1, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    freeze: {code:'skc_d', sky:'skc', precip:null, intensity:0, isThunder:false, isNight:false, temp:-12, wind:3, windAngle:180, humidity:70, pressure:756, pressureTrend:1, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    storm:  {code:'ovc_ts_ra', sky:'ovc', precip:'ra', intensity:1, isThunder:true, isNight:false, temp:16, wind:9, windAngle:210, humidity:90, pressure:738, pressureTrend:-6, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    ovc:    {code:'ovc', sky:'ovc', precip:null, intensity:0, isThunder:false, isNight:false, temp:12, wind:4, windAngle:190, humidity:75, pressure:747, pressureTrend:0, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    wind:   {code:'bkn_d', sky:'bkn', precip:null, intensity:0, isThunder:false, isNight:false, temp:14, wind:14, windAngle:250, humidity:60, pressure:745, pressureTrend:-2, moonCode:4, minutesToSunrise:-200, minutesToSunset:400},
+    night:  {code:'skc_n', sky:'skc', precip:null, intensity:0, isThunder:false, isNight:true, temp:11, wind:2, windAngle:180, humidity:70, pressure:750, pressureTrend:0, moonCode:8, minutesToSunrise:400, minutesToSunset:-200}
+  };
+
+  function el(id) { return document.getElementById(id); }
+
+  function build() {
+    for (var g in GROUPS) {
+      var box = el(g), i;
+      for (i = 0; i < GROUPS[g].length; i++) {
+        (function (spec) {
+          var b = document.createElement('button');
+          b.textContent = spec[0];
+          b.onclick = function () { add(spec[0], spec[1]); };
+          box.appendChild(b);
+        })(GROUPS[g][i]);
+      }
+    }
+    var art = el('argArt'), names = Props.names(), k;
+    for (k = 0; k < names.length; k++) art.add(new Option(names[k], names[k]));
+    var os = el('outSel'), on = Wardrobe.names();
+    for (k = 0; k < on.length; k++) os.add(new Option(on[k], on[k]));
+    os.onchange = function () { Wardrobe.set(os.value); };
+    el('wxSel').onchange = applyWx;
+    applyWx();
+  }
+
+  function applyWx() {
+    var w = WX[el('wxSel').value];
+    Bus.emit('weather', w);
+    note('weather: ' + w.code + '  ' + w.temp + 'C');
+  }
+
+  function add(verb, kind) {
+    var n = parseFloat(el('argN').value);
+    var s = el('argS').value;
+    var x = parseFloat(el('argX').value), y = parseFloat(el('argY').value);
+    var p = el('argP').value, artv = el('argArt').value;
+    var w = parseFloat(el('argW').value), z = parseFloat(el('argZ').value);
+
+    var beat;
+    if (kind === null) beat = [verb];
+    else if (kind === 'n') beat = [verb, n];
+    else if (kind === 's') beat = [verb, s];
+    else if (kind === 'p') beat = [verb, p];
+    else if (kind === 'xy') beat = (verb === 'propTo') ? [verb, p, x, y, 800]
+                                : (verb === 'throw') ? [verb, p, x]
+                                : [verb, x, y];
+    else if (kind === 'prop') beat = [verb, p, artv, x, y, w, z];
+    else beat = [verb];
+
+    beats.push(beat);
+    render();
+  }
+
+  function render() {
+    var ol = el('list');
+    ol.innerHTML = '';
+    for (var i = 0; i < beats.length; i++) {
+      (function (idx) {
+        var li = document.createElement('li');
+        li.innerHTML = '<b>' + beats[idx][0] + '</b>' +
+          (beats[idx].length > 1 ? ' ' + beats[idx].slice(1).join(', ') : '');
+        li.title = 'click to delete';
+        li.onclick = function () { beats.splice(idx, 1); render(); };
+        ol.appendChild(li);
+      })(i);
+    }
+    el('code').value = code();
+  }
+
+  function code() {
+    var id = el('sceneId').value || 'my_scene';
+    var out = "Scenes.add('" + id + "', {\n";
+    out += "\tlabel: '" + id.replace(/_/g, ' ') + "',\n\tenergy: 'mid',\n\tweight: 6,\n";
+    out += "\twhen: {},\n\tbeats: [\n";
+    for (var i = 0; i < beats.length; i++) {
+      out += "\t\t[" + beats[i].map(function (v) {
+        return typeof v === 'string' ? "'" + v + "'" : v;
+      }).join(', ') + "]" + (i < beats.length - 1 ? ',' : '') + "\n";
+    }
+    out += "\t]\n});\n";
+    return out;
+  }
+
+  function reset() {
+    if (running) { for (var i = 0; i < running.timers.length; i++) clearTimeout(running.timers[i]); running = null; }
+    Anim.clear();
+    Props.clear();
+    Rig.resetAll();
+    Actions.silhouette('normal', 1);
+    Actions.setPosture('STAND');
+    Rig.face(1);
+    Rig.scale(1);
+    Rig.measure();
+    Rig.at(28, 100 - Rig.size.h + 0.6);
+    Rig.flush(true);
+    Alive.settle();
+    Anim.to('IDLE');
+  }
+
+  function play() {
+    reset();
+    Anim.to('MOTION');
+    running = Beats.play(beats, function () { return true; });
+    note('playing ' + beats.length + ' beats, ' + Math.round(running.duration / 100) / 10 + 's');
+  }
+
+  function note(t) {
+    el('readout').textContent = t + '   |   fps ' + Anim.fps() + ' ' + Anim.tier();
+  }
+
+  window.addEventListener('load', function () {
+    Rig.init();
+    Props.init();
+    Anim.setFps(15);
+    Anim.ambient(function (clock, dt) { Alive.step(dt); });
+    build();
+    reset();
+    setInterval(function () { note(running ? 'playing' : 'ready'); }, 1000);
+  });
+
+  return {
+    play: play, reset: reset,
+    undo: function () { beats.pop(); render(); },
+    clear: function () { beats = []; render(); },
+    copy: function () {
+      var t = document.getElementById('code');
+      t.select();
+      try { document.execCommand('copy'); note('code copied'); } catch (e) { note('select and copy manually'); }
+    }
+  };
+})();
+</script>
+</body></html>

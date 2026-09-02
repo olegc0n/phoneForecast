@@ -1,0 +1,316 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 200 262" width="200" height="262" id="catSvg">
+<!-- Lili - modelled on a plush kitten with a mint vest.
+     RIG v2. Every animated part is an inner <g id="..."> drawn around its own
+     local origin (0,0) = its pivot; the outer <g> only positions that pivot. So
+     JS animates with plain rotate()/translate()/scale() - no transform-origin,
+     no transform-box, nothing an old WebView lacks.
+
+     What v2 adds over v1, and why she now reads as alive rather than as a decal:
+       - pupils, so the eyes can dart and dilate independently of the eyeball
+       - real upper/lower eyelids that sweep across, inside a clip
+       - a three-segment tail that can curl and whip instead of pivoting rigidly
+       - a jaw with a morphable mouth (closed / small / wide / smile / frown)
+       - toes, cheeks, ear innards
+       - torso split from head, so the chest can move without inflating it
+     Animate transform + opacity only. -->
+<defs>
+  <linearGradient id="furG" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#FFFEFC"/><stop offset="0.62" stop-color="#F7F2EC"/><stop offset="1" stop-color="#E4DAD1"/>
+  </linearGradient>
+  <linearGradient id="furHeadG" x1="0.1" y1="0" x2="0.9" y2="1">
+    <stop offset="0" stop-color="#FFFFFE"/><stop offset="0.6" stop-color="#F9F5F0"/><stop offset="1" stop-color="#E7DED5"/>
+  </linearGradient>
+  <linearGradient id="gingerG" x1="0" y1="0" x2="0.7" y2="1">
+    <stop offset="0" stop-color="#F6D6A4"/><stop offset="1" stop-color="#E0A05A"/>
+  </linearGradient>
+  <linearGradient id="vestG" x1="0.15" y1="0" x2="0.85" y2="1">
+    <stop offset="0" stop-color="#CBE8A6"/><stop offset="0.55" stop-color="#B4DC8D"/><stop offset="1" stop-color="#9BCB6F"/>
+  </linearGradient>
+  <radialGradient id="eyeG" cx="0.36" cy="0.3" r="0.8">
+    <stop offset="0" stop-color="#4A3126"/><stop offset="0.55" stop-color="#241814"/><stop offset="1" stop-color="#120C0A"/>
+  </radialGradient>
+  <clipPath id="headClip"><ellipse cx="0" cy="-38" rx="49" ry="38"/></clipPath>
+  <clipPath id="bodyClip"><ellipse cx="0" cy="-54" rx="62" ry="56"/></clipPath>
+  <clipPath id="eyeClipL"><circle r="11.6"/></clipPath>
+  <clipPath id="eyeClipR"><circle r="11.6"/></clipPath>
+  <g id="whiskerFan">
+    <path d="M0,-2 C-13,-2 -26,2 -38,10"/><path d="M0,1 C-13,4 -25,11 -34,21"/><path d="M0,4 C-11,10 -19,19 -24,30"/>
+  </g>
+</defs>
+
+<g id="catRoot" transform="translate(0,0)">
+
+  <!-- ============ TAIL: three segments, each pivoting on the one before ============ -->
+  <g transform="translate(148,198)"><g id="tail">
+    <path d="M0,0 L22,-16" fill="none" stroke="#DFD5CB" stroke-width="19" stroke-linecap="round"/>
+    <path d="M0,0 L22,-16" fill="none" stroke="url(#furG)" stroke-width="16.5" stroke-linecap="round"/>
+    <g transform="translate(22,-16)"><g id="tail2">
+      <path d="M0,0 L17,-15" fill="none" stroke="#DFD5CB" stroke-width="16" stroke-linecap="round"/>
+      <path d="M0,0 L17,-15" fill="none" stroke="url(#furG)" stroke-width="13.5" stroke-linecap="round"/>
+      <g transform="translate(17,-15)"><g id="tail3">
+        <path d="M0,0 L12,-14" fill="none" stroke="#DFD5CB" stroke-width="13" stroke-linecap="round"/>
+        <path d="M0,0 L12,-14" fill="none" stroke="url(#furG)" stroke-width="10.5" stroke-linecap="round"/>
+        <circle cx="12" cy="-14" r="5.6" fill="url(#gingerG)" stroke="#D9954E" stroke-width="1"/>
+      </g></g>
+    </g></g>
+  </g></g>
+
+  <!-- ============ HIND FEET (planted on the floor, so they hang off root) ============ -->
+  <g transform="translate(72,206) rotate(-5)"><g id="footL">
+    <path d="M-17,-3 C-20,13 -16,38 0,41 C16,38 20,13 17,-3 C9,-9 -9,-9 -17,-3 Z" fill="url(#furG)" stroke="#DDD2C8" stroke-width="1"/>
+    <path d="M-9,31 C-5,35 5,35 9,31" fill="none" stroke="#E0D5CA" stroke-width="1.4" stroke-linecap="round"/>
+  </g></g>
+  <g transform="translate(128,206) rotate(5)"><g id="footR">
+    <path d="M-17,-3 C-20,13 -16,38 0,41 C16,38 20,13 17,-3 C9,-9 -9,-9 -17,-3 Z" fill="url(#furG)" stroke="#DDD2C8" stroke-width="1"/>
+    <path d="M-9,31 C-5,35 5,35 9,31" fill="none" stroke="#E0D5CA" stroke-width="1.4" stroke-linecap="round"/>
+  </g></g>
+
+  <!-- ============ SPINE: whole-body lean and bob ============ -->
+  <g transform="translate(100,215)"><g id="spine">
+   <!-- BODY: the channel actions use. Scaling it moves the head too, as before. -->
+   <g id="body">
+
+    <!-- TORSO: the body art. Separate from the head so one can move alone. -->
+    <g id="torso">
+
+      <!-- front paws: stubby, swung out so they clear the body silhouette -->
+      <g transform="translate(-62,-78) rotate(-26)"><g id="pawFL">
+        <path d="M0,-7 C-11,-7 -17,2 -17,13 C-17,26 -10,32 -2,32 C7,32 12,24 12,13 C12,2 9,-7 0,-7 Z" fill="url(#furG)" stroke="#DDD2C8" stroke-width="1"/>
+        <g id="toesL"><path d="M-11,24 C-11,29 -10,31 -9,32 M-3,26 C-3,30 -3,31 -2,32 M5,25 C5,29 5,31 4,32"
+              fill="none" stroke="#E2D7CC" stroke-width="1.3" stroke-linecap="round"/></g>
+        <!-- ============ WARDROBE: held in the left paw ============ -->
+        <g transform="translate(-4,8)"><g id="wUmbrella" opacity="0">
+          <path d="M0,-2 V-52" stroke="#8A6A48" stroke-width="4" stroke-linecap="round" fill="none"/>
+          <path d="M0,-2 C0,4 6,4 6,-1" fill="none" stroke="#8A6A48" stroke-width="4" stroke-linecap="round"/>
+          <path d="M-40,-52 C-40,-74 -22,-88 0,-88 C22,-88 40,-74 40,-52 Z" fill="#5FA8D8" stroke="#3E86B4" stroke-width="2"/>
+          <path d="M-40,-52 C-31,-58 -22,-58 -13,-52 C-4,-58 4,-58 13,-52 C22,-58 31,-58 40,-52"
+                fill="none" stroke="#3E86B4" stroke-width="2"/>
+          <path d="M-14,-86 C-8,-70 -6,-60 -6,-52 M14,-86 C8,-70 6,-60 6,-52" stroke="#3E86B4" stroke-width="1.6" fill="none" opacity="0.6"/>
+        </g></g>
+
+        <g transform="translate(-4,6)"><g id="wIceCream" opacity="0">
+          <path d="M-7,-14 L0,10 L7,-14 Z" fill="#E0B276" stroke="#B98A4E" stroke-width="1.6"/>
+          <path d="M-5,-10 L5,-10 M-3,-5 L3,-5" stroke="#B98A4E" stroke-width="1.2" opacity="0.7"/>
+          <circle cx="-3" cy="-20" r="8" fill="#F8C6DC" stroke="#DE9CBA" stroke-width="1.4"/>
+          <circle cx="5" cy="-22" r="7" fill="#FBEAC0" stroke="#DFC694" stroke-width="1.4"/>
+          <circle cx="0" cy="-30" r="6.5" fill="#A8DCC0" stroke="#7FBFA0" stroke-width="1.4"/>
+        </g></g>
+
+        <g transform="translate(-4,6)"><g id="wSoda" opacity="0">
+          <path d="M-9,-22 L-7,10 C-7,13 7,13 7,10 L9,-22 Z" fill="#EAF3FA" stroke="#A9C4D6" stroke-width="1.6" opacity="0.92"/>
+          <path d="M-8,-14 L-6.6,8 C-6.6,10 6.6,10 6.6,8 L8,-14 Z" fill="#D8604E" opacity="0.8"/>
+          <path d="M-9,-22 H9" stroke="#A9C4D6" stroke-width="2.6" stroke-linecap="round"/>
+          <path d="M3,-22 L9,-38" stroke="#F2857F" stroke-width="3" stroke-linecap="round" fill="none"/>
+        </g></g>
+      </g></g>
+      <g transform="translate(62,-78) scale(-1,1) rotate(-26)"><g id="pawFR">
+        <path d="M0,-7 C-11,-7 -17,2 -17,13 C-17,26 -10,32 -2,32 C7,32 12,24 12,13 C12,2 9,-7 0,-7 Z" fill="url(#furG)" stroke="#DDD2C8" stroke-width="1"/>
+        <g id="toesR"><path d="M-11,24 C-11,29 -10,31 -9,32 M-3,26 C-3,30 -3,31 -2,32 M5,25 C5,29 5,31 4,32"
+              fill="none" stroke="#E2D7CC" stroke-width="1.3" stroke-linecap="round"/></g>
+      </g></g>
+
+      <path id="bodyShape" d="M0,-118 C34,-118 56,-104 62,-84 C68,-64 74,-44 74,-26 C74,-6 52,6 0,6 C-52,6 -74,-6 -74,-26 C-74,-44 -68,-64 -62,-84 C-56,-104 -34,-118 0,-118 Z"
+            fill="url(#furG)" stroke="#DCD1C7" stroke-width="1"/>
+      <g clip-path="url(#bodyClip)">
+        <ellipse cx="-30" cy="-70" rx="30" ry="42" fill="#FFFFFF" opacity="0.5"/>
+        <path d="M0,-100 C6,-70 6,-30 0,4" fill="none" stroke="#E8DED4" stroke-width="1.6" opacity="0.8"/>
+        <ellipse cx="16" cy="-22" rx="46" ry="22" fill="#DCD0C4" opacity="0.32"/>
+      </g>
+      <g transform="translate(36,-25) rotate(-7)" opacity="0.72">
+        <rect x="-8.5" y="-5.5" width="17" height="11" rx="2" fill="#F3B0A8" stroke="#E39790" stroke-width="0.9"/>
+        <path d="M-5,-1 H5 M-5,2.2 H2.5" stroke="#FFFFFF" stroke-width="1.4" opacity="0.85" stroke-linecap="round"/>
+      </g>
+
+      <!-- mint vest. WARDROBE: outfits attach at this same pivot. -->
+      <g transform="translate(0,-112)"><g id="vest">
+        <path d="M0,0 C-13,-1 -26,5 -35,16 C-43,27 -48,42 -50,56 C-51,64 -47,69 -40,70 L-12,72 C-6,56 -2,34 0,25 Z"
+              fill="url(#vestG)" stroke="#8FBE66" stroke-width="1"/>
+        <path d="M0,0 C13,-1 26,5 35,16 C43,27 48,42 50,56 C51,64 47,69 40,70 L12,72 C6,56 2,34 0,25 Z"
+              fill="url(#vestG)" stroke="#8FBE66" stroke-width="1"/>
+        <path d="M0,0 C-13,-1 -26,5 -35,16 M0,0 C13,-1 26,5 35,16" fill="none" stroke="#A5D07C" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="M-28,61 L-11,63 M28,61 L11,63" fill="none" stroke="#A2CE78" stroke-width="2" opacity="0.7"/>
+        <g transform="translate(0,21)">
+          <circle r="6.2" fill="#C9D2D6" stroke="#8E9AA1" stroke-width="1"/>
+          <circle r="3.3" fill="#EAF0F3"/><circle cx="-1.6" cy="-1.8" r="1.3" fill="#FFFFFF"/>
+        </g>
+      </g></g>
+
+
+      <!-- ============ WARDROBE: body ============ -->
+      <g transform="translate(0,-104)"><g id="wScarf" opacity="0">
+        <path d="M-30,-6 C-14,-14 14,-14 30,-6 C30,4 24,9 16,8 C6,3 -6,3 -16,8 C-24,9 -30,4 -30,-6 Z"
+              fill="#C85A6E" stroke="#A64354" stroke-width="2"/>
+        <path d="M18,6 C27,11 31,20 29,26 L13,23 C16,17 16,11 18,6 Z" fill="#D96D80" stroke="#A64354" stroke-width="2"/>
+        <path d="M-22,-8 V6 M-8,-11 V4 M8,-11 V4 M22,-8 V6" stroke="#A64354" stroke-width="1.4" opacity="0.45"/>
+      </g></g>
+
+      <g transform="translate(0,-112)"><g id="wCoat" opacity="0">
+        <path d="M0,2 C-16,1 -31,8 -41,20 C-50,32 -56,50 -58,66 C-59,75 -55,80 -47,81 L-14,83 C-7,64 -2,40 0,29 Z"
+              fill="#F2C14E" stroke="#D8A32F" stroke-width="2"/>
+        <path d="M0,2 C16,1 31,8 41,20 C50,32 56,50 58,66 C59,75 55,80 47,81 L14,83 C7,64 2,40 0,29 Z"
+              fill="#F2C14E" stroke="#D8A32F" stroke-width="2"/>
+        <path d="M0,2 C-16,1 -31,8 -41,20 M0,2 C16,1 31,8 41,20" fill="none" stroke="#FFD86B" stroke-width="3.4" stroke-linecap="round"/>
+        <path d="M-34,-4 C-20,-18 20,-18 34,-4 C34,8 20,14 0,14 C-20,14 -34,8 -34,-4 Z" fill="#FFD259" stroke="#D8A32F" stroke-width="2"/>
+        <circle cx="0" cy="26" r="3.6" fill="#D8A32F"/><circle cx="0" cy="46" r="3.6" fill="#D8A32F"/>
+      </g></g>
+      <g id="charm" transform="translate(-52,-74)" opacity="0">
+        <path d="M0,0 C-6,3 -9,9 -6,14 C-3,19 4,18 6,13" fill="none" stroke="#F7B8CE" stroke-width="3.2" stroke-linecap="round"/>
+        <circle cx="-7" cy="-3" r="3.4" fill="#9BE0DE" stroke="#79C8C6" stroke-width="0.8"/>
+      </g>
+    </g><!-- /torso -->
+
+    <!-- ============ NECK -> HEAD ============ -->
+    <g transform="translate(0,-113)"><g id="neck"><g id="head">
+
+      <g transform="translate(-35,-60) rotate(-18)"><g id="earL">
+        <path d="M-8,6 L-9,-11 Q-8,-16 -3,-13 L9,4 Q0,9 -8,6 Z" fill="url(#gingerG)" stroke="#D08B45" stroke-width="1.3"/>
+        <g id="earInL"><path d="M-5.5,2.5 L-6.5,-8 Q-6,-11 -3,-9 L4,1 Q-1,3.5 -5.5,2.5 Z" fill="#F8DFBB"/></g>
+      </g></g>
+      <g transform="translate(35,-60) scale(-1,1) rotate(-18)"><g id="earR">
+        <path d="M-8,6 L-9,-11 Q-8,-16 -3,-13 L9,4 Q0,9 -8,6 Z" fill="url(#gingerG)" stroke="#D08B45" stroke-width="1.3"/>
+        <g id="earInR"><path d="M-5.5,2.5 L-6.5,-8 Q-6,-11 -3,-9 L4,1 Q-1,3.5 -5.5,2.5 Z" fill="#F8DFBB"/></g>
+      </g></g>
+
+      <path d="M-49,-38 C-49,-59 -27,-76 0,-76 C27,-76 49,-59 49,-38 C49,-15 30,2 0,2 C-30,2 -49,-15 -49,-38 Z"
+            fill="url(#furHeadG)" stroke="#DCD1C7" stroke-width="1"/>
+      <g clip-path="url(#headClip)">
+        <path d="M-50,-40 C-51,-59 -38,-73 -19,-77 C-26,-62 -31,-46 -29,-30 C-27,-15 -21,-5 -12,2 C-32,2 -49,-18 -50,-40 Z"
+              fill="url(#gingerG)" opacity="0.9"/>
+        <path d="M-19,-77 C-26,-62 -31,-46 -29,-30" fill="none" stroke="#F6E2C4" stroke-width="3" opacity="0.5"/>
+        <ellipse cx="-14" cy="-56" rx="24" ry="16" fill="#FFFFFF" opacity="0.33"/>
+        <ellipse cx="20" cy="-16" rx="30" ry="14" fill="#DED3C8" opacity="0.28"/>
+      </g>
+
+      <!-- whiskers, behind the eyes: shadow pass, then white -->
+      <g transform="translate(-7,-27)"><g id="whiskerL" fill="none" stroke-linecap="round">
+        <use href="#whiskerFan" xlink:href="#whiskerFan" stroke="#BFB0A2" stroke-width="2.6" opacity="0.3"/>
+        <use href="#whiskerFan" xlink:href="#whiskerFan" stroke="#FFFFFF" stroke-width="1.4" opacity="0.95"/>
+      </g></g>
+      <g transform="translate(7,-27) scale(-1,1)"><g id="whiskerR" fill="none" stroke-linecap="round">
+        <use href="#whiskerFan" xlink:href="#whiskerFan" stroke="#BFB0A2" stroke-width="2.6" opacity="0.3"/>
+        <use href="#whiskerFan" xlink:href="#whiskerFan" stroke="#FFFFFF" stroke-width="1.4" opacity="0.95"/>
+      </g></g>
+
+      <!-- FOREHEAD. Sunburn, for the sunbathing scene. Two soft ellipses rather
+           than one radial gradient: it reads the same at this size and costs
+           nothing to re-rasterise, and gradients are the expensive part of this
+           artwork. Starts invisible; the scene fades it in. -->
+      <g id="foreheadFlush" opacity="0">
+        <ellipse cx="0" cy="-53" rx="20" ry="10.5" fill="#F2867C" opacity="0.4"/>
+        <ellipse cx="0" cy="-53" rx="13.5" ry="6.8" fill="#EC685C" opacity="0.5"/>
+      </g>
+
+      <!-- EYES. eyeL/R = whole-eye squash for a fast blink.
+           pupilL/R  = darting and dilation.
+           lidUpL/R + lidLoL/R = real lids sweeping across, clipped to the eye. -->
+      <g transform="translate(-21,-34)">
+        <g id="eyeL">
+          <circle r="11.6" fill="#96541F"/>
+          <g clip-path="url(#eyeClipL)">
+            <g id="pupilL">
+              <circle r="9.2" fill="url(#eyeG)"/>
+              <ellipse cx="-3.4" cy="-4.4" rx="3.1" ry="2.3" fill="#FFFFFF" opacity="0.9"/>
+              <circle cx="3.2" cy="3.4" r="1.5" fill="#FFFFFF" opacity="0.35"/>
+            </g>
+            <g id="lidUpL"><path d="M-13,-44 H13 V-13 Q0,-7 -13,-13 Z" fill="#F4EBE1"/></g>
+            <g id="lidLoL"><path d="M-13,44 H13 V13 Q0,7 -13,13 Z" fill="#EFE5DA"/></g>
+          </g>
+        </g>
+        <path id="eyeLidL" d="M-9,2 Q0,-6 9,2" fill="none" stroke="#A87C55" stroke-width="2.6" stroke-linecap="round" opacity="0"/>
+      </g>
+      <g transform="translate(21,-34)">
+        <g id="eyeR">
+          <circle r="11.6" fill="#96541F"/>
+          <g clip-path="url(#eyeClipR)">
+            <g id="pupilR">
+              <circle r="9.2" fill="url(#eyeG)"/>
+              <ellipse cx="-3.4" cy="-4.4" rx="3.1" ry="2.3" fill="#FFFFFF" opacity="0.9"/>
+              <circle cx="3.2" cy="3.4" r="1.5" fill="#FFFFFF" opacity="0.35"/>
+            </g>
+            <g id="lidUpR"><path d="M-13,-44 H13 V-13 Q0,-7 -13,-13 Z" fill="#F4EBE1"/></g>
+            <g id="lidLoR"><path d="M-13,44 H13 V13 Q0,7 -13,13 Z" fill="#EFE5DA"/></g>
+          </g>
+        </g>
+        <path id="eyeLidR" d="M-9,2 Q0,-6 9,2" fill="none" stroke="#A87C55" stroke-width="2.6" stroke-linecap="round" opacity="0"/>
+      </g>
+
+      <!-- MUZZLE: nose, cheeks, and a jaw carrying a morphable mouth -->
+      <g transform="translate(0,-28)"><g id="muzzle">
+        <g id="cheekL"><ellipse cx="-13" cy="6" rx="8" ry="5.5" fill="#F6E8DC" opacity="0.55"/></g>
+        <g id="cheekR"><ellipse cx="13" cy="6" rx="8" ry="5.5" fill="#F6E8DC" opacity="0.55"/></g>
+        <g id="nose">
+          <path d="M-5.6,-3.7 L5.6,-3.7 Q6.3,-3.7 4.4,-0.5 L1.2,4.2 Q0,5.6 -1.2,4.2 L-4.4,-0.5 Q-6.3,-3.7 -5.6,-3.7 Z"
+                fill="#F79E96" stroke="#EE8B82" stroke-width="0.8"/>
+        </g>
+        <path d="M0,5.2 V9" fill="none" stroke="#E3D7CB" stroke-width="1.3" stroke-linecap="round"/>
+        <g transform="translate(0,10)"><g id="jaw">
+          <path id="mouthShape" d="M-5,0 C-5,-1 -2,-1 0,-1 C2,-1 5,-1 5,0 C5,1 2,1 0,1 C-2,1 -5,1 -5,0 Z"
+                fill="#E0736F" opacity="0"/>
+        </g></g>
+      </g></g>
+
+
+      <!-- COLD. A blue wash over the whole face for the freezing scene, clipped
+           to the head so it stops exactly at her outline, with a deeper blue on
+           the nose and the ear insides - the parts that actually go blue.
+           Drawn last inside the head, so it washes over the fur, the muzzle and
+           the eyes together instead of sitting under them. Starts invisible. -->
+      <g id="coldTint" opacity="0">
+        <g clip-path="url(#headClip)">
+          <ellipse cx="0" cy="-32" rx="54" ry="44" fill="#7FB6E8"/>
+        </g>
+        <ellipse cx="0" cy="-28" rx="9" ry="6" fill="#4F8FCE" opacity="0.75"/>
+        <ellipse cx="-13" cy="-22" rx="9" ry="6" fill="#5C9BD6" opacity="0.5"/>
+        <ellipse cx="13" cy="-22" rx="9" ry="6" fill="#5C9BD6" opacity="0.5"/>
+      </g>
+
+      <!-- ============ WARDROBE: headwear and eyewear ============
+           Authored in the rig rather than created at runtime, so every garment
+           inherits the head's motion and the spring layer for free - a scarf
+           trails when she walks without a line of code. -->
+      <g id="wSunglasses" opacity="0">
+        <path d="M-34,-38 H34" stroke="#2C3038" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+        <circle cx="-21" cy="-34" r="13" fill="#2A2E36" stroke="#14171C" stroke-width="2"/>
+        <circle cx="21" cy="-34" r="13" fill="#2A2E36" stroke="#14171C" stroke-width="2"/>
+        <path d="M-8,-36 H8" stroke="#2C3038" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <path d="M-27,-41 C-24,-44 -18,-44 -15,-42" stroke="#6E7A88" stroke-width="2.6" fill="none" stroke-linecap="round" opacity="0.8"/>
+        <path d="M15,-41 C18,-44 24,-44 27,-42" stroke="#6E7A88" stroke-width="2.6" fill="none" stroke-linecap="round" opacity="0.8"/>
+      </g>
+
+      <g id="wCap" opacity="0">
+        <path d="M-31,-66 C-31,-84 -16,-93 0,-93 C16,-93 31,-84 31,-66 Z" fill="#4E86C6" stroke="#3A6699" stroke-width="2"/>
+        <path d="M-31,-66 C-10,-71 10,-71 31,-66 L31,-62 C10,-67 -10,-67 -31,-62 Z" fill="#3A6699"/>
+        <path d="M28,-66 C44,-65 52,-61 52,-56 C52,-53 44,-53 30,-56 Z" fill="#5B93D2" stroke="#3A6699" stroke-width="2"/>
+        <circle cx="0" cy="-90" r="3.4" fill="#3A6699"/>
+        <path d="M0,-93 C6,-86 8,-76 8,-67" stroke="#3A6699" stroke-width="1.6" fill="none" opacity="0.6"/>
+      </g>
+
+      <!-- Party hat. A GARMENT, not a prop, and that is the whole change: as a
+           prop it hung at a fixed spot on the screen while her head moved out
+           from under it. In here it hangs off the same pivots as the cap, so it
+           tips when she tilts her head and rides the spring layer for free.
+           The outer group carries the tilt, because the rig overwrites the whole
+           transform attribute of the element it animates - a static rotate put
+           on #wPartyHat itself would be wiped on the first frame. Rotating about
+           the base rather than the head centre is what makes it jaunty instead
+           of swung sideways. -->
+      <g transform="translate(-4,-64) rotate(-10)"><g id="wPartyHat" opacity="0">
+        <path d="M0,-54 L19,0 H-19 Z" fill="#F2857F" stroke="#D96A64" stroke-width="2"/>
+        <path d="M-7,-32 H7 M-12,-16 H12 M-15,-6 H15" stroke="#FFD75E" stroke-width="3.4" stroke-linecap="round"/>
+        <ellipse cx="0" cy="0" rx="19.5" ry="4.6" fill="#D96A64"/>
+        <circle cx="0" cy="-54" r="6" fill="#9BE0DE" stroke="#79C8C6" stroke-width="1.6"/>
+      </g></g>
+
+      <g id="wWarmHat" opacity="0">
+        <path d="M-33,-63 C-33,-85 -17,-96 0,-96 C17,-96 33,-85 33,-63 Z" fill="#C85A6E" stroke="#A64354" stroke-width="2"/>
+        <path d="M-36,-64 C-12,-70 12,-70 36,-64 C36,-56 30,-53 22,-54 C8,-57 -8,-57 -22,-54 C-30,-53 -36,-56 -36,-64 Z"
+              fill="#E0788A" stroke="#A64354" stroke-width="2"/>
+        <circle cx="0" cy="-100" r="8" fill="#F6E2C4" stroke="#D9BE96" stroke-width="1.6"/>
+        <path d="M-18,-90 C-14,-80 -14,-70 -16,-64 M0,-94 C2,-82 2,-72 0,-64 M18,-90 C14,-80 14,-70 16,-64"
+              stroke="#A64354" stroke-width="1.6" fill="none" opacity="0.5"/>
+      </g>
+    </g></g></g><!-- /head /neck -->
+   </g><!-- /body -->
+  </g></g><!-- /spine -->
+</g>
+</svg>

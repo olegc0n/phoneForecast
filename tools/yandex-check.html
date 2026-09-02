@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<!-- yandex-check.html - open this in a browser on the phone to test the API.
+     Standalone: no build step, no server, nothing else to copy.
+
+     CONTAINS THE API KEY. Do not share this file. -->
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yandex Weather check</title>
+<style>
+  :root { --ok:#4fbf72; --bad:#e2564a; --warn:#e0a33a; --dim:#8b9490; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px 14px 60px; background:#101614; color:#e2e8e4;
+         font:16px/1.5 -apple-system,"Segoe UI",Roboto,Verdana,sans-serif; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { margin:0 0 18px; color:var(--dim); font-size:14px; }
+  label { display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+          color:var(--dim); margin:14px 0 5px; }
+  input { width:100%; padding:11px 12px; font:14px/1.3 monospace; color:#e2e8e4;
+          background:#182220; border:1px solid #2c3a36; border-radius:6px; }
+  button { width:100%; margin:16px 0 4px; padding:16px; font-size:17px; font-weight:600;
+           color:#0d1211; background:#4fbf72; border:0; border-radius:8px; }
+  button:active { background:#3fa25e; }
+  button[disabled] { background:#2c3a36; color:var(--dim); }
+  .test { margin:14px 0 0; padding:13px 14px; background:#182220;
+          border:1px solid #2c3a36; border-left-width:4px; border-radius:6px; }
+  .test.pass { border-left-color:var(--ok); }
+  .test.fail { border-left-color:var(--bad); }
+  .test.warn { border-left-color:var(--warn); }
+  .test.run  { border-left-color:var(--dim); }
+  .test h2 { margin:0 0 5px; font-size:15px; }
+  .test .v { font:13px/1.5 monospace; color:var(--dim); word-break:break-all; }
+  .test .v b { color:#e2e8e4; font-weight:600; }
+  .verdict { margin:22px 0 0; padding:15px; border-radius:8px; background:#182220;
+             border:1px solid #2c3a36; font-size:15px; }
+  .verdict b { display:block; font-size:17px; margin-bottom:7px; }
+  pre { margin:8px 0 0; padding:10px; background:#0c1110; border-radius:5px;
+        font:11px/1.45 monospace; color:var(--dim); max-height:180px; overflow:auto; }
+  .note { margin:20px 0 0; font-size:13px; color:var(--dim); }
+  .note code { color:#bcd3c8; }
+</style>
+</head><body>
+
+<h1>Yandex Weather check</h1>
+<p class="sub">Does the key work, and what does the API say right now?</p>
+
+<label for="key">API key</label>
+<input id="key" value="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false">
+<label for="coords">lat, lon</label>
+<input id="coords" value="53.9, 27.56" spellcheck="false">
+
+<button id="go">Run the check</button>
+
+<div id="out"></div>
+
+<div class="note">
+  <p><b>Why the address bar cannot do this.</b> The key travels as an
+  <code>X-Yandex-Weather-Key</code> header, and typing a URL cannot send a header.
+  Opening the API URL directly returns 403 whether your key is good or bad.</p>
+  <p><b>And why a browser may still not settle it.</b> A page loaded from a file
+  has no origin the API will accept, so the browser may refuse to show the answer
+  even when the server replied. That shows up below as <b>blocked by the
+  browser</b> — inconclusive, not a failure of the key. Test 1 still tells you
+  whether the phone can reach Yandex at all, and test 3 tells you whether the key
+  works when passed a way the browser permits.</p>
+</div>
+
+<script>
+var out = document.getElementById('out');
+
+function card(title, state, lines, raw) {
+  var d = document.createElement('div');
+  d.className = 'test ' + state;
+  var h = '<h2>' + title + '</h2><div class="v">' + lines.join('<br>') + '</div>';
+  if (raw) h += '<pre>' + String(raw).replace(/[<>&]/g, function (c) {
+    return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c];
+  }).slice(0, 1200) + '</pre>';
+  d.innerHTML = h;
+  out.appendChild(d);
+  return d;
+}
+
+function replace(node, title, state, lines, raw) {
+  node.parentNode.removeChild(node);
+  return card(title, state, lines, raw);
+}
+
+/* XHR rather than fetch: it reports status 0 for a browser-blocked request,
+   which is exactly the case that has to be told apart from a real HTTP error. */
+function call(url, headers, done) {
+  var xhr = new XMLHttpRequest(), fired = false;
+  function finish(r) { if (!fired) { fired = true; done(r); } }
+  var t0 = Date.now();
+  try { xhr.open('GET', url, true); } catch (e) { return finish({ err: 'open failed' }); }
+  for (var h in headers) { try { xhr.setRequestHeader(h, headers[h]); } catch (e) {} }
+  xhr.timeout = 20000;
+  xhr.ontimeout = function () { finish({ err: 'timeout after 20s', ms: Date.now() - t0 }); };
+  xhr.onerror   = function () { finish({ err: 'blocked', status: xhr.status, ms: Date.now() - t0 }); };
+  xhr.onload    = function () {
+    finish({ status: xhr.status, body: xhr.responseText, ms: Date.now() - t0 });
+  };
+  try { xhr.send(null); } catch (e) { finish({ err: 'send failed' }); }
+}
+
+/* What is actually in the response.
+ *
+ * The app reads forecasts[0].hours for today's min/max and forecasts[1].parts
+ * for tomorrow night, so we know hourly data and at least two days arrive - but
+ * it never touches forecasts[1].hours, so whether there are 48 hourly entries or
+ * 24 is not answerable from the code. Only a real response answers it, and at 30
+ * requests a day a real response is worth spending carefully.               */
+function describe(body) {
+  var d;
+  try { d = JSON.parse(body); } catch (e) { return ['(could not parse the response)']; }
+  var out = [], i, f = d.forecasts || [];
+
+  if (d.fact) {
+    out.push('<b>now:</b> ' + (d.fact.temp > 0 ? '+' : '') + d.fact.temp + '°C, ' +
+             (d.fact.icon || '?') + ', wind ' + d.fact.wind_speed + ' m/s');
+  }
+  out.push('<b>days returned:</b> ' + f.length);
+
+  var totalHours = 0;
+  for (i = 0; i < f.length; i++) {
+    var h = f[i].hours || [];
+    totalHours += h.length;
+    var line = '&nbsp;&nbsp;day ' + i + ' (' + (f[i].date || '?') + '): ' +
+      (h.length ? h.length + ' hourly' : '<b>no hourly</b>') +
+      (f[i].parts ? ', parts: ' + Object.keys(f[i].parts).join('/') : '');
+    if (h.length) {
+      line += '<br>&nbsp;&nbsp;&nbsp;&nbsp;' + (h[0].hour || '?') + ':00 to ' +
+              (h[h.length - 1].hour || '?') + ':00';
+    }
+    out.push(line);
+  }
+
+  out.push('<b>total hourly entries: ' + totalHours + '</b>' +
+    (totalHours >= 48 ? ' &mdash; that is 48 h of hourly forecast'
+     : totalHours >= 24 ? ' &mdash; 24 h only, one day'
+     : ' &mdash; no usable hourly data'));
+
+  if (f[0] && f[0].sunrise) out.push('sunrise ' + f[0].sunrise + ', sunset ' + f[0].sunset);
+  return out;
+}
+
+function tempOf(body) {
+  try {
+    var d = JSON.parse(body);
+    if (d && d.fact && typeof d.fact.temp === 'number') {
+      return (d.fact.temp > 0 ? '+' : '') + d.fact.temp + '°C, ' + (d.fact.icon || '?');
+    }
+  } catch (e) {}
+  return null;
+}
+
+document.getElementById('go').onclick = function () {
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  out.innerHTML = '';
+
+  var key = document.getElementById('key').value.replace(/\s+/g, '');
+  var cs = document.getElementById('coords').value.split(',');
+  var lat = parseFloat(cs[0]), lon = parseFloat(cs[1]);
+  var base = 'https://api.weather.yandex.ru/v2/forecast?lat=' + lat + '&lon=' + lon;
+
+  var results = {};
+
+  /* ---- 1. can the phone reach the API host at all? ---- */
+  var c1 = card('1. Can the phone reach Yandex?', 'run', ['checking…']);
+  var img = new Image(), settled = false;
+  var t0 = Date.now();
+  function reach(ok, why) {
+    if (settled) return;
+    settled = true;
+    results.reach = ok;
+    c1 = replace(c1, '1. Can the phone reach Yandex?', ok ? 'pass' : 'fail',
+      ok ? ['<b>Yes</b> — answered in ' + (Date.now() - t0) + ' ms']
+         : ['<b>No</b> — ' + why, 'The phone cannot see yandex.ru.',
+            'Check the wifi before reading anything below.']);
+    step2();
+  }
+  img.onload = function () { reach(true); };
+  /* an error still proves DNS and a route: only a timeout means unreachable */
+  img.onerror = function () { reach(true); };
+  setTimeout(function () { reach(false, 'no answer in 12 s'); }, 12000);
+  img.src = 'https://yastatic.net/favicon.ico?t=' + Date.now();
+
+  /* ---- 2. the real call, key in the header ---- */
+  function step2() {
+    var c2 = card('2. The real call (key in the header)', 'run', ['calling…']);
+    call(base, { 'X-Yandex-Weather-Key': key }, function (r) {
+      if (r.err === 'blocked' || (r.err && r.status === 0)) {
+        results.header = 'blocked';
+        c2 = replace(c2, '2. The real call (key in the header)', 'warn',
+          ['<b>Blocked by the browser</b>',
+           'The request never got to show its answer, because this page has no',
+           'origin the API accepts. This tells you nothing about your key.',
+           'Read test 3 instead.']);
+      } else if (r.err) {
+        results.header = 'error';
+        c2 = replace(c2, '2. The real call (key in the header)', 'fail',
+          ['<b>' + r.err + '</b>']);
+      } else {
+        var t = tempOf(r.body);
+        results.header = r.status;
+        results.temp = t;
+        var lines = ['HTTP <b>' + r.status + '</b> in ' + r.ms + ' ms'];
+        if (r.status === 200) {
+          lines = lines.concat(describe(r.body));
+          results.body = r.body;
+        } else {
+          lines.push(r.status === 403 ? 'Key rejected, or the quota is spent.'
+            : r.status === 404 ? 'Wrong URL.' : 'Unexpected status.');
+        }
+        c2 = replace(c2, '2. The real call (key in the header)',
+          r.status === 200 ? 'pass' : 'fail', lines, r.body);
+      }
+      step3(base, key);
+    });
+  }
+
+  /* ---- 3. key as a query parameter ---- */
+  function step3(base, key) {
+    var c3 = card('3. Same call, key in the URL', 'run', ['calling…']);
+    call(base + '&key=' + encodeURIComponent(key), null, function (r) {
+      if (r.err === 'blocked' || (r.err && r.status === 0)) {
+        results.query = 'blocked';
+        c3 = replace(c3, '3. Same call, key in the URL', 'warn',
+          ['<b>Blocked by the browser</b>',
+           'No custom header this time, so this was a plain request — the API',
+           'still would not let the page read the reply.']);
+      } else if (r.err) {
+        results.query = 'error';
+        c3 = replace(c3, '3. Same call, key in the URL', 'fail', ['<b>' + r.err + '</b>']);
+      } else {
+        var t = tempOf(r.body);
+        results.query = r.status;
+        if (t) results.temp = results.temp || t;
+        var l3 = ['HTTP <b>' + r.status + '</b> in ' + r.ms + ' ms'];
+        if (r.status === 200) {
+          l3.push('Yandex says: <b>' + (t || 'parsed, no temp') + '</b>');
+          if (!results.body) { results.body = r.body; l3 = l3.concat(describe(r.body)); }
+        } else {
+          l3.push('The API may simply not accept the key this way,');
+          l3.push('so a failure here does not condemn the key.');
+        }
+        c3 = replace(c3, '3. Same call, key in the URL',
+          r.status === 200 ? 'pass' : 'warn', l3, r.status === 200 ? null : r.body);
+      }
+      verdict();
+    });
+  }
+
+  /* ---- what it all means ---- */
+  function verdict() {
+    var lines, cls;
+    var got = results.header === 200 || results.query === 200;
+    var refused = results.header === 403 || results.query === 403;
+
+    if (got) {
+      cls = 'pass';
+      lines = ['<b>The key works.</b>',
+        'Yandex answered with ' + results.temp + '.',
+        'If the phone is showing something different, the forecast on it is',
+        'stale — the app keeps the last good reading for 12 hours — so the',
+        'problem is the app’s hourly call, not the key.'];
+    } else if (refused) {
+      cls = 'fail';
+      lines = ['<b>Yandex refused the key (403).</b>',
+        'Either the key is wrong or expired, or the free quota is spent.',
+        'Check it at <b>yandex.ru/dev/weather</b>.'];
+    } else if (results.reach === false) {
+      cls = 'fail';
+      lines = ['<b>No network.</b>',
+        'The phone could not reach Yandex at all. Nothing else here means',
+        'anything until that is fixed.'];
+    } else {
+      cls = 'warn';
+      lines = ['<b>Inconclusive from a browser.</b>',
+        'The phone can reach Yandex, but the browser would not let this page',
+        'read the API’s reply — which is normal for a file opened from disk,',
+        'and says nothing about your key.',
+        '',
+        'To settle it, use the app: <b>Тест анимаций → CHECK YANDEX NOW</b>.',
+        'That runs inside the app, where the header is allowed.'];
+    }
+    card('Verdict', cls, lines);
+    btn.disabled = false;
+    btn.textContent = 'Run again';
+  }
+};
+
+document.getElementById('go').click();
+</script>
+</body></html>
