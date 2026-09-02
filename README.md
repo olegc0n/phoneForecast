@@ -581,8 +581,9 @@ episodes any more; everything happens in place on the forecast screen.
 ## Credits
 
 The forecast layout — the clock, the day columns and the icon set — began as
-**Weather informer v1** (2025) by Alexey N. Everything in `src/cat`, the frame
-driver, the day scheduler and the build are new work; the forecast half has been
-rewritten around the hourly API but the layout is still recognisably his.
+**Weather informer v1** (2025) by Alexey N (meczengo@gmail.com). Everything in
+`src/cat`, the frame driver, the day scheduler and the build are new work, and the
+forecast half has been rewritten around the hourly API — but the layout is still
+recognisably his.
 
 Licensed under the MIT License — see `LICENSE`.
