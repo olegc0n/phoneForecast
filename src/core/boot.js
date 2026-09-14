@@ -10,9 +10,32 @@ function fullscreen() {
 }
 
 on(window, 'load', function () {
+	LOG('=== page load === build ' + cat_build + ' at ' + location.href);
+
+	/* Every touch and click, with where it landed and what it hit, before any
+	 * handler can swallow it. This is the line that settles whether a dialog
+	 * opened itself or something pressed it. */
+	onCapture(document, 'touchstart', function (e) {
+		var t = e.touches && e.touches[0];
+		LOG('touchstart at ' + (t ? Math.round(t.clientX) + ',' + Math.round(t.clientY) : '?') +
+			' on ' + LOGtarget(e.target));
+	});
+	onCapture(document, 'click', function (e) {
+		LOG('click at ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) +
+			' on ' + LOGtarget(e.target));
+	});
+	onCapture(document, 'visibilitychange', function () {
+		LOG('visibilitychange hidden=' + document.hidden);
+	});
 	/* ---- forecast ---- */
 	View.register();
 	on(document.body, 'click', function () { fullscreen(); });
+
+	/* Before anything reads `api`, `api_url` or the quiet hours: whatever was set
+	 * on the phone wins over what the build shipped. */
+	Settings.load();
+	LOG('settings applied: key=...' + String(api).slice(-6) + ' url=' + api_url +
+		' sleep=' + cat_quiet_from + '-' + cat_quiet_to);
 
 	var date = new Date();
 	var now = Date.now();
@@ -24,4 +47,10 @@ on(window, 'load', function () {
 
 	/* ---- cat ---- */
 	Guard.run('init', function () { Cat.init(); });
+
+	/* ---- the gear ----
+	 * Last, and in its own guard: the settings dialog must never be what stops
+	 * the forecast from appearing. */
+	Guard.run('settings', function () { SettingsUI.init(); });
+	LOG('=== boot complete ===');
 });

@@ -29,7 +29,27 @@ var Weather = (function () {
 
 	/* ---------------- fetch ---------------- */
 
+	/* The endpoint is config, not a literal, because it is settable on the phone
+	 * now. Somebody pasting a URL will sooner or later paste one that already
+	 * carries a query, so join on whichever separator is left. */
+	function endpoint() {
+		var u = String(api_url || '').replace(/[?&]+$/, '');
+		return u + (u.indexOf('?') === -1 ? '?' : '&') + 'lat=' + lat + '&lon=' + lon;
+	}
+
+
 	function due(now) {
+		/* A stamp from the future is not a schedule.
+		 *
+		 * restore() takes lastcall from the cached file's own timestamp, which is
+		 * right until the clock moves backwards - a shelf phone after a power cut,
+		 * before it has found a network to sync from. Then lastcall sits ahead of
+		 * now and `lastcall < now - timeout` is false for as long as it takes real
+		 * time to catch up, which can be years. The app goes silent for good while
+		 * still painting the cached file, so the screen looks alive and the API
+		 * sees nothing at all. Calling once is the cheap way out: fetch() sets
+		 * lastcall = now before it sends, so this cannot loop.                  */
+		if (lastcall > now) return true;
 		return lastcall < now - timeout * 1000;
 	}
 
@@ -50,7 +70,7 @@ var Weather = (function () {
 		lastcall = now;
 
 		getJSON(
-			'https://api.weather.yandex.ru/v2/forecast?lat=' + lat + '&lon=' + lon,
+			endpoint(),
 			{ 'X-Yandex-Weather-Key': api },
 			30 * 1000,
 			function (data, raw) {

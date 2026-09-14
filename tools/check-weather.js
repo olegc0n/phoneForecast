@@ -200,6 +200,22 @@ sandbox.Store.setJSON('wx.raw.v1', { t: Date.now() - 3 * 3600000, raw: JSON.stri
 Weather.restore(new Date(), Date.now());
 checkTrue('file 3 h old -> a call IS due', Weather.due(Date.now()) === true);
 
+/* A shelf phone restarts after a power cut with its clock reset, so the file it
+ * wrote is stamped later than "now". due() used to answer no for as long as it
+ * took real time to catch up - years, if the clock came back as 2015 - and the
+ * app went silent for good while still painting the file. The screen looked
+ * alive and the API saw nothing, which is exactly what makes it hard to spot. */
+sandbox.Store.setJSON('wx.raw.v1', { t: Date.now() + 30 * 24 * 3600000, raw: JSON.stringify(data) });
+Weather.restore(new Date(), Date.now());
+checkTrue('clock jumped back, file stamped in the future -> a call IS due',
+	Weather.due(Date.now()) === true);
+
+/* and the way out must not become a call every minute: fetch() stamps lastcall
+ * before it sends, so the tick after it is not due again. */
+sandbox.Store.setJSON('wx.raw.v1', { t: Date.now() - 10 * 60000, raw: JSON.stringify(data) });
+Weather.restore(new Date(), Date.now());
+checkTrue('a fresh file is still not due -> no call storm', Weather.due(Date.now()) === false);
+
 /* ---- a long outage must not blank the screen ----
  *
  * View hides any field older than `expire` (12 h) so a dead API fades out rather

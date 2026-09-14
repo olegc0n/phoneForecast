@@ -26,6 +26,37 @@ function removeClass(el, cls) {
 function addClassAll(sel, cls)    { each(qsa(sel), function (el) { addClass(el, cls); }); }
 function removeClassAll(sel, cls) { each(qsa(sel), function (el) { removeClass(el, cls); }); }
 
+/* LOG - one line to logcat, via the WebChromeClient in MainActivity.
+ *
+ * Everything interesting the page does goes through here, because the only
+ * thing worse than a bug on a shelf device is a bug you can only reason about.
+ * Turn it off with app_log = false in the config block above.               */
+function LOG(s) {
+	try {
+		if (typeof app_log !== 'undefined' && !app_log) return;
+		if (window.console && console.log) console.log('[LILI] ' + s);
+	} catch (e) {}
+}
+
+/* what a touch actually landed on, in the words of the DOM */
+function LOGtarget(t) {
+	if (!t) return '(nothing)';
+	if (t === document.body) return 'body';
+	var s = (t.tagName || '?').toLowerCase();
+	if (t.id) s += '#' + t.id;
+	if (t.className && typeof t.className === 'string' && t.className) s += '.' + t.className;
+	var txt = (t.textContent || '').replace(/\s+/g, ' ').slice(0, 24);
+	if (txt) s += ' "' + txt + '"';
+	return s;
+}
+
+/* addEventListener with capture, so a log line is written before any handler
+   on the way down can stop the event */
+function onCapture(el, ev, fn) {
+	if (!el || !el.addEventListener) return;
+	el.addEventListener(ev, fn, true);
+}
+
 function on(el, ev, fn) {
 	if (!el) return;
 	if (el.addEventListener) el.addEventListener(ev, fn, false);

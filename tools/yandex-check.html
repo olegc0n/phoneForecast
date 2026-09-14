@@ -57,12 +57,17 @@
   <p><b>Why the address bar cannot do this.</b> The key travels as an
   <code>X-Yandex-Weather-Key</code> header, and typing a URL cannot send a header.
   Opening the API URL directly returns 403 whether your key is good or bad.</p>
-  <p><b>And why a browser may still not settle it.</b> A page loaded from a file
-  has no origin the API will accept, so the browser may refuse to show the answer
-  even when the server replied. That shows up below as <b>blocked by the
-  browser</b> — inconclusive, not a failure of the key. Test 1 still tells you
-  whether the phone can reach Yandex at all, and test 3 tells you whether the key
-  works when passed a way the browser permits.</p>
+  <p><b>And why a browser may still not settle it.</b> The API answers the CORS
+  preflight without an <code>Access-Control-Allow-Origin</code> header, so the
+  browser throws the reply away before your key is ever judged. That shows up
+  below as <b>blocked by the browser</b> &mdash; inconclusive, not a failure of the
+  key, and it happens on every origin: a file on disk, localhost, anything.
+  There is no page-side fix, which is why the card tells you how to run the
+  check where CORS is not enforced.</p>
+  <p><b>There used to be a third test</b> that passed the key as a
+  <code>&amp;key=</code> query parameter. Yandex documents the header and only the
+  header &mdash; their own sample sends nothing else &mdash; so that test could never
+  pass and its failure was read as a bad key more than once. It is gone.</p>
 </div>
 
 <script>
@@ -194,9 +199,26 @@ document.getElementById('go').onclick = function () {
         results.header = 'blocked';
         c2 = replace(c2, '2. The real call (key in the header)', 'warn',
           ['<b>Blocked by the browser</b>',
-           'The request never got to show its answer, because this page has no',
-           'origin the API accepts. This tells you nothing about your key.',
-           'Read test 3 instead.']);
+           'The API answered, but its CORS preflight carries no',
+           'Access-Control-Allow-Origin, so the browser binned the reply before',
+           'your key was judged. Nothing here is a verdict on the key.',
+           '',
+           '<b>A desktop browser cannot settle this. Use curl:</b>',
+           '&nbsp;',
+           'curl -H "X-Yandex-Weather-Key: KEY" "' + base + '"',
+           '&nbsp;',
+           'Or, if it must be a browser, a throwaway Chrome:',
+           '&nbsp;',
+           'google-chrome --disable-web-security',
+           '&nbsp;&nbsp;--user-data-dir=/tmp/yandex-check',
+           '&nbsp;&nbsp;--allow-file-access-from-files',
+           '&nbsp;&nbsp;file://' + location.pathname,
+           '&nbsp;',
+           'The separate --user-data-dir is not optional: without it Chrome',
+           'ignores the flag and you get this same card again.',
+           '&nbsp;',
+           'Or skip the browser entirely - no flags, no CORS:',
+           'curl -H "X-Yandex-Weather-Key: KEY" "' + base + '"']);
       } else if (r.err) {
         results.header = 'error';
         c2 = replace(c2, '2. The real call (key in the header)', 'fail',
@@ -216,38 +238,6 @@ document.getElementById('go').onclick = function () {
         c2 = replace(c2, '2. The real call (key in the header)',
           r.status === 200 ? 'pass' : 'fail', lines, r.body);
       }
-      step3(base, key);
-    });
-  }
-
-  /* ---- 3. key as a query parameter ---- */
-  function step3(base, key) {
-    var c3 = card('3. Same call, key in the URL', 'run', ['calling…']);
-    call(base + '&key=' + encodeURIComponent(key), null, function (r) {
-      if (r.err === 'blocked' || (r.err && r.status === 0)) {
-        results.query = 'blocked';
-        c3 = replace(c3, '3. Same call, key in the URL', 'warn',
-          ['<b>Blocked by the browser</b>',
-           'No custom header this time, so this was a plain request — the API',
-           'still would not let the page read the reply.']);
-      } else if (r.err) {
-        results.query = 'error';
-        c3 = replace(c3, '3. Same call, key in the URL', 'fail', ['<b>' + r.err + '</b>']);
-      } else {
-        var t = tempOf(r.body);
-        results.query = r.status;
-        if (t) results.temp = results.temp || t;
-        var l3 = ['HTTP <b>' + r.status + '</b> in ' + r.ms + ' ms'];
-        if (r.status === 200) {
-          l3.push('Yandex says: <b>' + (t || 'parsed, no temp') + '</b>');
-          if (!results.body) { results.body = r.body; l3 = l3.concat(describe(r.body)); }
-        } else {
-          l3.push('The API may simply not accept the key this way,');
-          l3.push('so a failure here does not condemn the key.');
-        }
-        c3 = replace(c3, '3. Same call, key in the URL',
-          r.status === 200 ? 'pass' : 'warn', l3, r.status === 200 ? null : r.body);
-      }
       verdict();
     });
   }
@@ -255,8 +245,8 @@ document.getElementById('go').onclick = function () {
   /* ---- what it all means ---- */
   function verdict() {
     var lines, cls;
-    var got = results.header === 200 || results.query === 200;
-    var refused = results.header === 403 || results.query === 403;
+    var got = results.header === 200;
+    var refused = results.header === 403;
 
     if (got) {
       cls = 'pass';
@@ -278,12 +268,12 @@ document.getElementById('go').onclick = function () {
     } else {
       cls = 'warn';
       lines = ['<b>Inconclusive from a browser.</b>',
-        'The phone can reach Yandex, but the browser would not let this page',
-        'read the API’s reply — which is normal for a file opened from disk,',
-        'and says nothing about your key.',
+        'Yandex is reachable, but the browser would not let this page read the',
+        'reply — its preflight carries no Access-Control-Allow-Origin. That is',
+        'true of every origin, so no amount of moving this file helps, and it',
+        'says nothing about your key.',
         '',
-        'To settle it, use the app: <b>Тест анимаций → CHECK YANDEX NOW</b>.',
-        'That runs inside the app, where the header is allowed.'];
+        'Test 2 above prints the two ways to settle it.'];
     }
     card('Verdict', cls, lines);
     btn.disabled = false;

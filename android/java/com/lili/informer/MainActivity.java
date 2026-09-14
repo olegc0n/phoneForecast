@@ -40,6 +40,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle state) {
+        /* Which app is this? Two builds under different package names once cost
+         * an afternoon of chasing a bug in the one that was not running. */
+        Log.i(TAG, "[LIFE] onCreate " + getPackageName() + " savedState=" + (state != null));
         super.onCreate(state);
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -54,6 +57,22 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);          /* the weather cache depends on this */
         s.setAllowFileAccess(true);
+
+        /* THE WEATHER CALL DEPENDS ON THIS ONE.
+         *
+         * The page is loaded from file:///android_asset/, and from API 16 onward
+         * a file:// page is an opaque origin that may not touch any other one.
+         * The default is off, so the XHR to api.weather.yandex.ru was refused
+         * inside the WebView and never reached the network at all - which is the
+         * worst shape a bug can take here: curl from a laptop works, the key is
+         * fine, the developer console shows zero requests because none arrived,
+         * and the screen keeps painting the cached file as though nothing is
+         * wrong. Nothing on the phone says no; it just never asks.
+         *
+         * The page is our own asset and loads nothing it did not ship with, so
+         * granting it is the same trust we already place in the file. */
+        s.setAllowUniversalAccessFromFileURLs(true);
+        s.setAllowFileAccessFromFileURLs(true);
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
@@ -70,6 +89,7 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
+                Log.i(TAG, "[LIFE] onPageFinished " + url);
                 super.onPageFinished(view, url);
                 if (pendingPlan) {
                     pendingPlan = false;
@@ -126,6 +146,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onNewIntent(android.content.Intent intent) {
+        Log.i(TAG, "[LIFE] onNewIntent " + (intent == null ? "null" : String.valueOf(intent.getExtras())));
         super.onNewIntent(intent);
         setIntent(intent);
         if (intent == null) return;
@@ -150,30 +171,67 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        Log.i(TAG, "[LIFE] onPause");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.i(TAG, "[LIFE] onStop");
+    }
+
+    @Override
     protected void onResume() {
+        Log.i(TAG, "[LIFE] onResume");
         super.onResume();
         immersive();
+        home();
+    }
+
+    /**
+     * Put the page back on the forecast.
+     *
+     * The activity is singleTask and the WebView is never reloaded, so whatever
+     * was on screen when the app went to the background is still there when it
+     * comes back - close it while the episode list is up and tapping the icon
+     * returns you to the episode list, not the weather. This is a weather
+     * display; coming back to it should show weather.
+     *
+     * The page makes this a no-op when the forecast is already showing, and the
+     * try/catch covers the first resume, which happens before the page exists.
+     */
+    private void home() {
+        Log.i(TAG, "[LIFE] home() -> Cat.home()");
+        if (web == null) return;
+        String js = "try{Cat.home()}catch(e){}";
+        if (Build.VERSION.SDK_INT >= 19) web.evaluateJavascript(js, null);
+        else web.loadUrl("javascript:" + js);
     }
 
     @Override
     public void onWindowFocusChanged(boolean focus) {
+        Log.i(TAG, "[LIFE] onWindowFocusChanged focus=" + focus);
         super.onWindowFocusChanged(focus);
         if (focus) immersive();
     }
 
     /**
-     * Back is handed to the page, which knows what it is in the middle of: one
-     * press cancels a running animation, the next returns to the chooser. Only
-     * when the page says it has nothing to go back to does Android get it, so
-     * the app can still be closed from the chooser.
+     * Back is handed to the page, which knows what it is in the middle of. It
+     * unwinds one layer per press: the settings dialog closes, then the episode
+     * list, and once the forecast is all that is left the page says so and
+     * Android gets the press, so the app can still be closed.
      */
     @Override
     public void onBackPressed() {
+        Log.i(TAG, "[LIFE] onBackPressed");
         if (web == null || Build.VERSION.SDK_INT < 19) { super.onBackPressed(); return; }
         web.evaluateJavascript(
             "(function(){try{return Cat.back()?1:0}catch(e){return 0}})()",
             new ValueCallback<String>() {
                 public void onReceiveValue(String v) {
+                    Log.i(TAG, "[LIFE] page handled back? " + v);
                     if (!"1".equals(v)) MainActivity.super.onBackPressed();
                 }
             });

@@ -6,6 +6,7 @@
 <script>
 
 var api = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'; //API Яндекс погода
+var api_url = 'https://api.weather.yandex.ru/v2/forecast'; //без lat/lon - они добавляются сами
 var lat = 53.9; //Широта
 var lon = 27.56; //Долгота 
 
@@ -35,26 +36,24 @@ var cat_work_weekdays = true;      //no desk on Saturday and Sunday
 var cat_lunch_from    = '13:00';
 var cat_lunch_to      = '14:00';
 var cat_birthday      = '11-07';   //'MM-DD' - Lili's birthday, 7 November
-var cat_start_menu    = true;      //ask "forecast or test animations" on launch
-var cat_start_timeout = 15;        //sec, then it goes to the forecast by itself
-var cat_test          = false;     //true = skip the chooser, go straight to the test menu
+var cat_test          = false;     //true = open the test menu at launch (dev)
 var cat_quiet_from    = '23:00';   //quiet hours: she sleeps, animation stops
 var cat_quiet_to      = '10:00';
 var cat_touch         = true;
 var cat_fps           = 15;        //peak fps during an action
 var cat_debug         = false;     //show a fps / user-agent overlay
+var app_log           = true;      //trace everything to logcat: adb logcat -s Lili
 
 </script>
 <style>
 .spacer {padding-bottom: 9vw;}
 
 /* ---------------- cat stage ---------------- */
+/* z-index only: the forecast sits above the cat stage. There was a .dimmed
+   class and an opacity transition here for quiet hours, but nothing ever
+   applied them - quiet hours stop the animation, they do not dim. */
 #wrapper {
-	transition: opacity 1s ease-in-out;
 	z-index: 2;
-}
-#wrapper.dimmed {
-	opacity: 0.35;
 }
 /* Scenery (sun, moon, window, parasol) belongs BEHIND the forecast text, or it
    covers the numbers. Foreground props (bowl, yarn, leaf) stay in front. */
@@ -132,62 +131,126 @@ var cat_debug         = false;     //show a fps / user-agent overlay
 	position: absolute;
 	pointer-events: auto;
 }
-#cat_start {
+/* ---------------- the gear, and what is behind it ---------------- */
+/* Always drawn, deliberately faint: this is a weather display first, and the
+   gear is in every glance somebody takes at the shelf. Big enough to hit with a
+   thumb, dim enough to read past. */
+#cfg_gear {
+	position: fixed;
+	top: 2.5vw;
+	right: 2.5vw;
+	width: 8vw;
+	height: 8vw;
+	color: #6a7a62;
+	opacity: 0.45;
+	z-index: 90;
+	pointer-events: auto;
+}
+#cfg_gear:active {
+	opacity: 0.9;
+}
+#cfg_panel {
+	/* Hidden until asked for. Belt and braces: buildPanel() appends it and
+	   show() sets display a line later, so without this it exists visible in
+	   between - and anything that ever builds it without showing it leaves
+	   the dialog covering the forecast on a shelf nobody is standing at. */
+	display: none;
 	position: fixed;
 	left: 0;
 	top: 0;
 	width: 100%;
 	height: 100%;
-	background: #000;
+	overflow-y: auto;
+	background: rgba(0, 0, 0, 0.94);
 	pointer-events: auto;
-	z-index: 110;
+	z-index: 120;
+	padding: 4vw 4vw 10vw;
 	box-sizing: border-box;
-	padding: 8vw 7vw;
-	text-align: center;
-	font-family: Verdana, Arial, Sans-serif;
-	color: #fff;
-	/* centred, so the first screen looks deliberate rather than top-aligned */
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
+	text-align: left;
+	font-family: Verdana, Arial, sans-serif;
 }
-#cat_start h1 {
-	font-size: 7vw;
-	font-weight: normal;
-	margin: 0 0 1vw;
-	letter-spacing: 0.3vw;
-}
-#cat_start p {
+#cfg_panel b {
+	display: block;
 	font-size: 3.6vw;
-	color: #7d7d7d;
-	margin: 0 0 9vw;
-	letter-spacing: 0.1vw;
+	color: #7f7;
+	padding: 0 0 3vw;
+	letter-spacing: 0.2vw;
 }
-#cat_start button {
+#cfg_panel .grp {
+	margin: 0 0 2vw;
+	padding: 3vw;
+	background: #12160f;
+	border: 0.25vw solid #2b331f;
+	border-radius: 1.6vw;
+}
+#cfg_panel label {
+	display: block;
+	font-size: 2.9vw;
+	color: #8a9a80;
+	letter-spacing: 0.15vw;
+	padding: 0 0 1.2vw;
+}
+#cfg_panel input {
 	display: block;
 	width: 100%;
-	margin: 0 0 4vw;
-	padding: 6vw 4vw;
-	font: 5vw Verdana, Arial, Sans-serif;
-	color: #fff;
-	background: #14180f;
-	border: 0.3vw solid #46543a;
-	border-radius: 3vw;
+	box-sizing: border-box;
+	padding: 3vw;
+	font: 3.6vw Verdana, Arial, sans-serif;
+	color: #eee;
+	background: #1b1f18;
+	border: 0.25vw solid #3a4432;
+	border-radius: 1.6vw;
 }
-#cat_start button.alt {
-	background: #101216;
-	border-color: #35404e;
-	color: #cfd6de;
-}
-#cat_start button:active {
-	background: #232a1d;
-}
-#cat_start small {
+#cfg_panel small {
 	display: block;
-	font-size: 3.2vw;
-	color: #6a6a6a;
-	padding-top: 4vw;
+	font-size: 2.6vw;
+	color: #67725f;
+	padding: 1vw 0 0;
 }
+/* the two clock fields sit on one line - "from 23:00 to 10:00" reads as a
+   sentence, and stacked it reads as two unrelated questions */
+#cfg_panel .row {
+	display: flex;
+	align-items: center;
+}
+#cfg_panel .row span {
+	font-size: 3.2vw;
+	color: #8a9a80;
+	padding: 0 2vw;
+}
+#cfg_panel .row span:first-child { padding-left: 0; }
+#cfg_panel .row input { flex: 1; }
+#cfg_panel button {
+	display: block;
+	width: 100%;
+	margin: 0 0 1.8vw;
+	padding: 3.4vw;
+	font: 3.8vw Verdana, Arial, sans-serif;
+	text-align: center;
+	color: #eee;
+	background: #1b1f18;
+	border: 0.25vw solid #3a4432;
+	border-radius: 1.6vw;
+	letter-spacing: 0.2vw;
+}
+#cfg_panel button:active { background: #2c3327; }
+#cfg_panel button.wide {
+	background: #17301f;
+	border-color: #3f7a52;
+	color: #bfe9cc;
+}
+#cfg_panel button.wide.ok {
+	background: #1d3a24;
+	border-color: #4f9a62;
+	color: #d2f2da;
+}
+#cfg_msg {
+	font-size: 3.1vw;
+	padding: 1vw 0 2.5vw;
+	min-height: 4vw;
+}
+#cfg_msg.ok  { color: #8fd9a4; }
+#cfg_msg.bad { color: #e08a7a; }
 #cat_menu {
 	position: fixed;
 	left: 0;

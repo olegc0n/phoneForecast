@@ -233,44 +233,50 @@ var Cat = (function () {
 
 	/* ---------------- the back button ---------------- */
 
-	/* Step out of whatever she is doing and offer the chooser again.
+	/* Step out of whatever she is doing, one layer at a time.
 	 *
-	 * Until now the back button was swallowed, so the only way to get from the
-	 * forecast to the test menu was to kill the app and start it over.
+	 * There is no chooser to go back to any more, so back unwinds instead: the
+	 * settings dialog closes, then the test menu, and once the forecast is all
+	 * that is left the press goes to Android so the app can still be closed.
 	 *
-	 * One press is enough, and it abandons whatever is running on the way. An
-	 * earlier version made a running animation absorb the first press, which
-	 * read as a dead button - with a hundred and twenty animations a day
-	 * something usually is running. A press at the chooser itself is left to
-	 * Android, so the app can still be closed.
+	 * One press is enough at each layer, and it abandons whatever is running on
+	 * the way. An earlier version made a running animation absorb the first
+	 * press, which read as a dead button - with a hundred and twenty animations
+	 * a day something usually is running.
 	 *
 	 * Returns true if we handled it.                                          */
 	function back() {
-		if (!alive || !mode) return false;      /* at the chooser: let Android have it */
-		Guard.run('back', toChooser);           /* aborts a running animation on the way */
+		LOG('Cat.back() mode=' + mode + ' alive=' + alive);
+		if (!alive) return false;
+		if (typeof SettingsUI !== 'undefined' && SettingsUI.isOpen()) {
+			Guard.run('back', function () { SettingsUI.show(false); });
+			return true;
+		}
+		if (mode !== 'test') return false;      /* on the forecast: let Android have it */
+		Guard.run('back', toForecast);          /* aborts a running animation on the way */
 		return true;
 	}
 
-	function toChooser() {
+	function toForecast() {
+		LOG('toForecast() from mode=' + mode);
 		if (nextTimer) { clearTimeout(nextTimer); nextTimer = null; }
 		try { Episodes.abort(); } catch (e) {}
 		Anim.clear();
 		Props.clear();
 		Rig.resetAll();
 		showMenu(false);
-		mode = null;
 		layout();
 		Actions.setPosture('STAND');
-		Actions.stand();
 		Anim.to('IDLE');
-		buildStartScreen();
+		start('forecast');
 	}
 
-	/* ---------------- quiet hours ---------------- */	/* ---------------- quiet hours ---------------- */
+	/* ---------------- quiet hours ---------------- */
 
 	function inQuiet(date) { return inClockWindow(date, cat_quiet_from, cat_quiet_to, false); }
 
 	function setQuiet(on) {
+		LOG('setQuiet(' + on + ') was=' + quiet);
 		if (quiet === on) return;
 		quiet = on;
 		if (on) {
@@ -329,53 +335,10 @@ var Cat = (function () {
 		on(hit, 'touchmove', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
 	}
 
-	/* ---------------- the launch chooser ---------------- */
-
-	/* Two ways in: watch the forecast, or sit and review the animations.
-	 *
-	 * It cannot block forever - this thing lives on a shelf and restarts by
-	 * itself after a power cut, so with nobody there it counts down and goes to
-	 * the forecast on its own.                                                 */
-	function buildStartScreen() {
-		if (byId('cat_start')) return;          /* two quick backs, one chooser */
-		var el = document.createElement('div');
-		el.id = 'cat_start';
-		el.innerHTML =
-			'<h1>' + cat_name + '</h1>' +
-			'<p>Выберите режим</p>' +
-			'<button data-go="forecast">Прогноз</button>' +
-			'<button class="alt" data-go="test">Тест анимаций</button>' +
-			'<small id="cat_start_tick">&nbsp;</small>';
-		document.body.appendChild(el);
-
-		var left = cat_start_timeout;
-		var tick = byId('cat_start_tick');
-		var timer = setInterval(function () {
-			left--;
-			if (tick) tick.innerHTML = 'Прогноз через ' + left + '&hellip;';
-			if (left <= 0) { clearInterval(timer); choose('forecast'); }
-		}, 1000);
-		if (tick) tick.innerHTML = 'Прогноз через ' + left + '&hellip;';
-
-		function choose(what) {
-			clearInterval(timer);
-			if (el.parentNode) el.parentNode.removeChild(el);
-			start(what);
-		}
-
-		on(el, 'click', function (e) {
-			var t = e.target || e.srcElement, go = null;
-			while (t && t !== el) {
-				if (t.getAttribute) { go = t.getAttribute('data-go'); if (go) break; }
-				t = t.parentNode;
-			}
-			if (!go) return;
-			if (e.stopPropagation) e.stopPropagation();
-			Guard.run('choose', function () { choose(go); });
-		});
-	}
+	/* ---------------- modes ---------------- */
 
 	function start(what) {
+		LOG('Cat.start(' + what + ')');
 		mode = what;
 		if (what === 'test') {
 			if (!menu) buildTestMenu();
@@ -491,6 +454,7 @@ var Cat = (function () {
 	}
 
 	function showMenu(on) {
+		LOG('showMenu(' + on + ') built=' + (!!menu) + ' mode=' + mode);
 		if (!menu) return;
 		menu.style.display = on ? '' : 'none';
 	}
@@ -652,8 +616,10 @@ var Cat = (function () {
 		Anim.to('IDLE');
 		setQuiet(inQuiet(new Date()));
 
+		/* Straight to the forecast. The chooser that used to be here asked a
+		 * question with one answer on a shelf, and asked it again on every power
+		 * cut; the test menu now lives behind the gear. */
 		if (cat_test) start('test');                 /* build-time shortcut for dev */
-		else if (cat_start_menu) buildStartScreen();
 		else start('forecast');
 	}
 
@@ -667,11 +633,51 @@ var Cat = (function () {
 		if (stage) stage.style.display = 'none';
 	}
 
+	/* The test menu is the cat's own overlay, and the settings dialog is the only
+	 * way into it now that the chooser is gone. */
+	/* Back to the weather, whatever was sitting on top of it.
+	 *
+	 * The activity is singleTask and the page is never reloaded, so leaving
+	 * the app with the episode list or the settings dialog open and then
+	 * tapping the icon again brings back that overlay rather than the
+	 * forecast. On a shelf display that is never what anybody wants: the
+	 * thing is a weather display, and coming back to it should show weather.
+	 *
+	 * Idempotent - if the forecast is already what is showing, nothing here
+	 * disturbs it, so calling it on every resume costs nothing.          */
+	function home() {
+		LOG('Cat.home() mode=' + mode + ' settingsOpen=' +
+			(typeof SettingsUI !== 'undefined' ? SettingsUI.isOpen() : 'n/a'));
+		if (typeof SettingsUI !== 'undefined' && SettingsUI.isOpen()) SettingsUI.show(false);
+		if (mode === 'test') toForecast();
+	}
+
+	function tests(on) {
+		LOG('Cat.tests(' + on + ') mode=' + mode);
+		if (!on) { mode = 'forecast'; showMenu(false); return; }
+
+		/* Stop whatever she is doing first. An episode hides the menu when it
+		 * starts and puts it back when it ends, so opening the list while one is
+		 * running shows the episode instead - the button reads as dead for the
+		 * twenty seconds it takes her to finish, and with a hundred and twenty
+		 * animations a day one usually is running. */
+		if (nextTimer) { clearTimeout(nextTimer); nextTimer = null; }
+		try { Episodes.abort(); } catch (e) {}
+		Anim.clear();
+		Props.clear();
+		Rig.resetAll();
+		Actions.setPosture('STAND');
+		Anim.to('IDLE');
+		start('test');
+	}
+
 	return {
 		init: init,
 		disable: disable,
 		play: play,
 		back: back,
+		tests: tests,
+		home: home,
 		plan: dumpPlan,
 		weather: function () { return wx; }
 	};

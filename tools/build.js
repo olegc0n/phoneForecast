@@ -40,6 +40,7 @@ var catSvg = read('src/cat/cat.svg')
 var MODULES = [
 	'src/core/dom.js',
 	'src/core/store.js',
+	'src/core/settings.js',
 	'src/core/host.js',
 	'src/core/bus.js',
 	'src/core/view.js',
@@ -57,6 +58,7 @@ var MODULES = [
 	'src/cat/episodes.js',
 	'src/cat/plan.js',
 	'src/cat/cat.js',
+	'src/core/settings-ui.js',
 	'src/core/boot.js'
 ];
 
