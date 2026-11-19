@@ -681,6 +681,435 @@ var Props = (function () {
 		heart:
 			'<svg viewBox="0 0 30 28">' +
 			'<path d="M15,26 C4,17 1,11 4,6 C7,1 13,3 15,8 C17,3 23,1 26,6 C29,11 26,17 15,26 Z" fill="#FF8FA8"/>' +
+			'</svg>',
+
+		/* ================================================================ *
+		 *  WINTER. Everything below was drawn for the cold-weather scenes  *
+		 *  in scenes-winter.js, to the same rules as the rest: flat fills, *
+		 *  no gradients, no clip paths, a handful of nodes each. The phone *
+		 *  re-rasterises a prop every time it moves, so cheap is the brief. *
+		 * ================================================================ */
+
+		/* ---- in the air ---- */
+
+		/* One flake that matters - the first one, the one she catches. The plain
+		 * `flake` is white strokes, which is right against the sky and invisible
+		 * against her face, and these are the ones that land on her. A blue line
+		 * under the white one is what makes it show on fur.                    */
+		flakeBig:
+			'<svg viewBox="0 0 30 30">' +
+			'<g fill="none" stroke-linecap="round">' +
+			'<path d="M15,3 V27 M4.6,9 L25.4,21 M4.6,21 L25.4,9 M15,8 L11,5 M15,8 L19,5 M15,22 L11,25 M15,22 L19,25" stroke="#6FA8D6" stroke-width="4.8"/>' +
+			'<path d="M15,3 V27 M4.6,9 L25.4,21 M4.6,21 L25.4,9 M15,8 L11,5 M15,8 L19,5 M15,22 L11,25 M15,22 L19,25" stroke="#FFFFFF" stroke-width="2.2"/>' +
+			'</g></svg>',
+
+		/* her breath in cold air. Brighter than `puff`, which is drawn faint for
+		 * the freezing scene and comes out grey on a black screen.             */
+		breathPuff:
+			'<svg viewBox="0 0 40 30">' +
+			'<ellipse cx="14" cy="17" rx="12" ry="9" fill="#EAF4FF" opacity="0.72"/>' +
+			'<ellipse cx="27" cy="13" rx="8.5" ry="6.5" fill="#EAF4FF" opacity="0.56"/>' +
+			'<ellipse cx="34" cy="20" rx="4.5" ry="3.6" fill="#EAF4FF" opacity="0.4"/>' +
+			'</svg>',
+
+		/* cocoa, where cocoa ends up */
+		cocoaStache:
+			'<svg viewBox="0 0 40 16">' +
+			'<path d="M3,5 C9,14 16,14 20,8 C24,14 31,14 37,5 C32,9 25,9 20,4 C15,9 8,9 3,5 Z" fill="#7A4B2A"/>' +
+			'</svg>',
+
+		/* ---- snow on the ground ---- */
+
+		/* a drift tall enough to hide the lower half of a cat */
+		drift:
+			'<svg viewBox="0 0 200 60">' +
+			'<path d="M2,58 C8,36 36,16 78,18 C100,4 142,8 160,26 C182,28 196,42 198,58 Z" fill="#F4FAFF" stroke="#CBDDE9" stroke-width="2"/>' +
+			'<path d="M30,58 C44,40 70,34 96,40 C124,30 160,40 176,58 Z" fill="#DCEAF4" opacity="0.8"/>' +
+			'<path d="M60,24 C72,20 84,20 94,24 M122,20 C132,18 142,20 150,26" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>' +
+			'</svg>',
+
+		/* a long low strip of it, for the bottom edge of the screen */
+		snowGround:
+			'<svg viewBox="0 0 200 24">' +
+			'<path d="M0,24 V12 C16,4 34,6 52,10 C76,2 100,4 122,9 C146,3 172,4 200,11 V24 Z" fill="#F4FAFF"/>' +
+			'<path d="M0,24 V18 C30,12 60,16 96,15 C132,12 168,16 200,17 V24 Z" fill="#DCEAF4" opacity="0.85"/>' +
+			'</svg>',
+
+		/* snow that has landed on something - her head, mostly */
+		snowCap:
+			'<svg viewBox="0 0 60 26">' +
+			'<path d="M4,23 C1,11 14,3 30,3 C46,3 59,11 56,23 C48,19 40,25 30,21 C20,25 12,19 4,23 Z" fill="#F7FBFF" stroke="#CBDDE9" stroke-width="2"/>' +
+			'<path d="M14,12 C20,8 28,7 36,8" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>' +
+			'</svg>',
+
+		/* the shape she leaves behind: head, two ears, and the sweep of the paws */
+		snowAngel:
+			'<svg viewBox="0 0 160 76">' +
+			'<path d="M80,44 C54,12 16,14 6,36 C14,60 52,66 80,50 Z" fill="#9FC4E0" opacity="0.6"/>' +
+			'<path d="M80,44 C106,12 144,14 154,36 C146,60 108,66 80,50 Z" fill="#9FC4E0" opacity="0.6"/>' +
+			'<ellipse cx="80" cy="50" rx="27" ry="22" fill="#8DB6D6" opacity="0.75"/>' +
+			'<path d="M64,30 L60,10 L74,20 Z M96,30 L100,10 L86,20 Z" fill="#8DB6D6" opacity="0.75"/>' +
+			'<circle cx="80" cy="28" r="17" fill="#8DB6D6" opacity="0.75"/>' +
+			'<path d="M20,34 C30,26 44,26 56,32 M140,34 C130,26 116,26 104,32" fill="none" stroke="#C9E0F1" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>' +
+			'</svg>',
+
+		/* two prints, one a little ahead of the other */
+		pawprints:
+			'<svg viewBox="0 0 34 24">' +
+			'<g fill="#7FAED4">' +
+			'<ellipse cx="9" cy="16" rx="5" ry="4.2"/><circle cx="3.6" cy="9.5" r="2"/><circle cx="8" cy="7" r="2.1"/><circle cx="13" cy="8.4" r="2"/>' +
+			'<ellipse cx="25" cy="13" rx="5" ry="4.2"/><circle cx="19.6" cy="6.5" r="2"/><circle cx="24" cy="4" r="2.1"/><circle cx="29" cy="5.4" r="2"/>' +
+			'</g></svg>',
+
+		/* a heart trodden into the snow: one dashed path, so it is dots for free */
+		printHeart:
+			'<svg viewBox="0 0 100 86">' +
+			'<path d="M50,78 C16,54 6,36 14,20 C22,6 42,10 50,26 C58,10 78,6 86,20 C94,36 84,54 50,78 Z" fill="#9FC4E0" opacity="0.16"/>' +
+			'<path d="M50,78 C16,54 6,36 14,20 C22,6 42,10 50,26 C58,10 78,6 86,20 C94,36 84,54 50,78 Z" fill="none" ' +
+			'stroke="#A9CDE8" stroke-width="7.5" stroke-linecap="round" stroke-dasharray="0.1 12.4"/>' +
+			'</svg>',
+
+		/* ---- things made of snow ---- */
+
+		/* the snowman's head, with the face on it */
+		snowFace:
+			'<svg viewBox="0 0 44 40">' +
+			'<circle cx="20" cy="20" r="17" fill="#F4FAFF" stroke="#CBDDE9" stroke-width="2"/>' +
+			'<circle cx="13.5" cy="15" r="2.3" fill="#2E3238"/><circle cx="26" cy="15" r="2.3" fill="#2E3238"/>' +
+			'<path d="M19,19 L41,22 L19,25 Z" fill="#F2913B" stroke="#C9702A" stroke-width="1.2" stroke-linejoin="round"/>' +
+			'<path d="M11,27 C15,32 24,32 28,28" fill="none" stroke="#2E3238" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 4.6"/>' +
+			'</svg>',
+
+		/* a small cat, in snow: twig whiskers, pebble eyes */
+		snowCat:
+			'<svg viewBox="0 0 84 84">' +
+			'<path d="M62,66 C76,64 80,52 72,46" fill="none" stroke="#F4FAFF" stroke-width="9" stroke-linecap="round"/>' +
+			'<ellipse cx="40" cy="60" rx="26" ry="20" fill="#F4FAFF" stroke="#CBDDE9" stroke-width="2"/>' +
+			'<path d="M26,20 L22,3 L37,13 Z M54,20 L58,3 L43,13 Z" fill="#F4FAFF" stroke="#CBDDE9" stroke-width="2" stroke-linejoin="round"/>' +
+			'<circle cx="40" cy="29" r="18" fill="#F7FBFF" stroke="#CBDDE9" stroke-width="2"/>' +
+			'<ellipse cx="46" cy="66" rx="14" ry="9" fill="#DCEAF4" opacity="0.8"/>' +
+			'<circle cx="33" cy="27" r="2.5" fill="#2E3238"/><circle cx="47" cy="27" r="2.5" fill="#2E3238"/>' +
+			'<path d="M37.5,32 H42.5 L40,35.5 Z" fill="#E58BA8"/>' +
+			'<path d="M30,34 L16,31 M30,37 L17,40 M50,34 L64,31 M50,37 L63,40" stroke="#8A6A48" stroke-width="1.5" stroke-linecap="round"/>' +
+			'</svg>',
+
+		/* her own warm hat, as a thing that can be given away. Same drawing as
+		 * the garment in the rig, so it is recognisably the one she was wearing. */
+		warmHat:
+			'<svg viewBox="-40 -110 80 60">' +
+			'<path d="M-33,-63 C-33,-85 -17,-96 0,-96 C17,-96 33,-85 33,-63 Z" fill="#C85A6E" stroke="#A64354" stroke-width="2"/>' +
+			'<path d="M-36,-64 C-12,-70 12,-70 36,-64 C36,-56 30,-53 22,-54 C8,-57 -8,-57 -22,-54 C-30,-53 -36,-56 -36,-64 Z" fill="#E0788A" stroke="#A64354" stroke-width="2"/>' +
+			'<circle cx="0" cy="-100" r="8" fill="#F6E2C4" stroke="#D9BE96" stroke-width="1.6"/>' +
+			'</svg>',
+
+		/* ---- ice ---- */
+
+		icePatch:
+			'<svg viewBox="0 0 140 30">' +
+			'<ellipse cx="70" cy="16" rx="67" ry="12.5" fill="#A9D3EE" opacity="0.8"/>' +
+			'<ellipse cx="70" cy="15" rx="56" ry="9" fill="#CDE7F8" opacity="0.85"/>' +
+			'<path d="M30,13 L52,10 M60,19 L92,15 M100,11 L116,13" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" opacity="0.9"/>' +
+			'</svg>',
+
+		/* the edge of a roof with the snow hanging over it, and icicles */
+		eave:
+			'<svg viewBox="0 0 200 36">' +
+			'<path d="M0,0 H200 V7 H0 Z" fill="#6E5440"/>' +
+			'<path d="M14,9 L19,26 L24,9 Z M52,9 L58,34 L64,9 Z M92,9 L96,22 L100,9 Z M128,9 L134,31 L140,9 Z M170,9 L174,24 L178,9 Z" fill="#CFE8FA" opacity="0.92"/>' +
+			'<path d="M56,12 L58,26 M132,12 L134,24" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>' +
+			'<path d="M0,2 C20,-2 40,6 62,3 C90,-1 110,6 136,3 C160,0 180,5 200,2 V10 C180,13 160,9 136,12 C110,14 90,9 62,12 C40,14 20,9 0,11 Z" fill="#F4FAFF"/>' +
+			'</svg>',
+
+		icicle:
+			'<svg viewBox="0 0 16 50">' +
+			'<path d="M2,2 H14 L8,48 Z" fill="#CFE8FA" stroke="#9CC7E6" stroke-width="1.4" stroke-linejoin="round"/>' +
+			'<path d="M6,6 L8,30" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>' +
+			'</svg>',
+
+		/* ferns of frost for the window: laid over it at the same size */
+		frost:
+			'<svg viewBox="0 0 120 150">' +
+			'<path d="M18,18 H52 V68 H18 Z M68,18 H102 V68 H68 Z M18,82 H52 V132 H18 Z M68,82 H102 V132 H68 Z" fill="#DCEBF7" opacity="0.4"/>' +
+			'<g fill="none" stroke="#F4FAFF" stroke-width="2" stroke-linecap="round" opacity="0.95">' +
+			'<path d="M18,68 C24,54 34,46 50,40 M24,58 L22,48 M24,58 L34,60 M33,49 L32,40 M33,49 L42,52 M42,44 L44,36"/>' +
+			'<path d="M102,18 C94,30 86,36 70,40 M96,27 L98,37 M96,27 L86,24 M87,34 L88,44 M87,34 L78,30"/>' +
+			'<path d="M18,132 C26,120 34,114 50,110 M25,123 L23,113 M25,123 L35,126 M35,116 L34,106 M35,116 L44,119"/>' +
+			'<path d="M102,82 C96,96 88,102 70,108 M97,91 L100,101 M97,91 L87,88 M88,100 L90,110 M88,100 L78,96"/>' +
+			'</g></svg>',
+
+		slush:
+			'<svg viewBox="0 0 120 40">' +
+			'<ellipse cx="60" cy="24" rx="55" ry="14" fill="#5F7C94" opacity="0.6"/>' +
+			'<ellipse cx="60" cy="22" rx="45" ry="10" fill="#93AFC4" opacity="0.55"/>' +
+			'<ellipse cx="36" cy="20" rx="10" ry="4" fill="#EAF4FF" opacity="0.9"/>' +
+			'<ellipse cx="70" cy="25" rx="13" ry="4.4" fill="#EAF4FF" opacity="0.85"/>' +
+			'<ellipse cx="88" cy="18" rx="7" ry="3" fill="#EAF4FF" opacity="0.8"/>' +
+			'</svg>',
+
+		/* ---- outdoors ---- */
+
+		/* a fir with snow on every tier. Scenery, like the other tree. */
+		firSnow:
+			'<svg viewBox="0 0 100 130">' +
+			'<path d="M42,108 H58 V126 H42 Z" fill="#8A5A3C" stroke="#6B4429" stroke-width="2"/>' +
+			'<path d="M50,56 L92,110 H8 Z" fill="#3F7A46" stroke="#2E5C34" stroke-width="2"/>' +
+			'<path d="M50,30 L82,76 H18 Z" fill="#478A4E" stroke="#2E5C34" stroke-width="2"/>' +
+			'<path d="M50,6 L74,46 H26 Z" fill="#4F9557" stroke="#2E5C34" stroke-width="2"/>' +
+			'<path d="M50,6 L62,26 C56,22 54,30 50,25 C46,30 44,22 38,26 Z" fill="#F4FAFF"/>' +
+			'<path d="M50,30 L68,56 C60,52 58,60 50,55 C42,60 40,52 32,56 Z" fill="#F4FAFF"/>' +
+			'<path d="M50,56 L74,87 C64,82 60,91 50,85 C40,91 36,82 26,87 Z" fill="#F4FAFF"/>' +
+			'</svg>',
+
+		/* a rowan branch with the berries still on it, and snow along the top */
+		branch:
+			'<svg viewBox="0 0 160 60">' +
+			'<path d="M0,26 C40,22 90,26 152,16" fill="none" stroke="#6B4A33" stroke-width="6" stroke-linecap="round"/>' +
+			'<path d="M96,23 L118,40 M60,24 L74,10" fill="none" stroke="#6B4A33" stroke-width="3.4" stroke-linecap="round"/>' +
+			'<path d="M4,22 C40,17 90,21 148,12" fill="none" stroke="#F4FAFF" stroke-width="5" stroke-linecap="round"/>' +
+			'<g fill="#D8443A" stroke="#A62E26" stroke-width="1">' +
+			'<circle cx="114" cy="44" r="5"/><circle cx="123" cy="47" r="5"/><circle cx="118" cy="53" r="5"/><circle cx="108" cy="52" r="4.4"/><circle cx="128" cy="55" r="4.2"/>' +
+			'</g></svg>',
+
+		/* a bullfinch, facing right: the red breast is the whole point of it */
+		bullfinch:
+			'<svg viewBox="0 0 52 46">' +
+			'<path d="M12,26 L1,33 L3,23 Z" fill="#2E3238"/>' +
+			'<path d="M24,40 V45 M30,40 V45" stroke="#6B4A33" stroke-width="1.8" stroke-linecap="round"/>' +
+			'<ellipse cx="26" cy="27" rx="16" ry="14" fill="#E0564A" stroke="#B53E34" stroke-width="1.6"/>' +
+			'<path d="M10,25 C10,14 22,9 31,14 C29,24 21,32 11,32 Z" fill="#8C97A4" stroke="#6B7480" stroke-width="1.4"/>' +
+			'<path d="M14,28 C20,27 25,23 28,17" fill="none" stroke="#F4FAFF" stroke-width="2" stroke-linecap="round"/>' +
+			'<path d="M26,13 C28,6 38,5 42,11 C44,15 42,19 39,20 C35,16 30,14 26,13 Z" fill="#2E3238"/>' +
+			'<path d="M42,13 L50,16 L42,19 Z" fill="#3A3F47"/>' +
+			'<circle cx="38" cy="12" r="1.5" fill="#FFFFFF"/>' +
+			'</svg>',
+
+		/* and a great tit, for the feeder */
+		tit:
+			'<svg viewBox="0 0 52 46">' +
+			'<path d="M12,26 L1,32 L3,22 Z" fill="#4E6C8C"/>' +
+			'<path d="M24,40 V45 M30,40 V45" stroke="#6B4A33" stroke-width="1.8" stroke-linecap="round"/>' +
+			'<ellipse cx="26" cy="27" rx="15" ry="13.5" fill="#F2D04A" stroke="#CFA92C" stroke-width="1.6"/>' +
+			'<path d="M30,18 C30,26 28,34 26,40" fill="none" stroke="#2E3238" stroke-width="3.4" stroke-linecap="round"/>' +
+			'<path d="M10,25 C10,15 21,10 30,14 C28,23 20,30 11,31 Z" fill="#6E8DAE" stroke="#4E6C8C" stroke-width="1.4"/>' +
+			'<path d="M26,13 C28,6 38,5 42,11 C44,15 42,19 39,20 C35,16 30,14 26,13 Z" fill="#2E3238"/>' +
+			'<ellipse cx="35" cy="15" rx="4.4" ry="3" fill="#F7FBFF"/>' +
+			'<path d="M42,13 L49,15.5 L42,18 Z" fill="#3A3F47"/>' +
+			'<circle cx="38" cy="11.5" r="1.3" fill="#FFFFFF"/>' +
+			'</svg>',
+
+		/* a bird table hanging from a string that runs off the top of its box */
+		feeder:
+			'<svg viewBox="0 0 80 84">' +
+			'<path d="M40,0 V16" stroke="#8A7A62" stroke-width="2" stroke-linecap="round"/>' +
+			'<path d="M14,36 V62 M66,36 V62" stroke="#8E6636" stroke-width="4" stroke-linecap="round"/>' +
+			'<path d="M4,38 L40,14 L76,38 Z" fill="#A87B47" stroke="#8E6636" stroke-width="2" stroke-linejoin="round"/>' +
+			'<path d="M6,36 L40,13 L74,36 C62,31 52,34 40,27 C28,34 18,31 6,36 Z" fill="#F4FAFF"/>' +
+			'<path d="M6,62 H74 V70 H6 Z" fill="#C79A66" stroke="#8E6636" stroke-width="2"/>' +
+			'<path d="M20,60 H24 M32,59 H37 M46,60 H50 M57,59 H61" stroke="#E8C56A" stroke-width="3" stroke-linecap="round"/>' +
+			'</svg>',
+
+		/* a street lamp. Scenery: the post is as tall as the lower band of the
+		 * screen, the lantern glows, and a faint cone of light falls under it. */
+		streetLamp:
+			'<svg viewBox="0 0 80 200">' +
+			'<path d="M30,44 L4,196 H76 L50,44 Z" fill="#FFE79A" opacity="0.09"/>' +
+			'<circle cx="40" cy="30" r="29" fill="#FFE79A" opacity="0.16"/>' +
+			'<path d="M40,44 V196" stroke="#3E454E" stroke-width="5" stroke-linecap="round"/>' +
+			'<path d="M30,196 H50" stroke="#3E454E" stroke-width="7" stroke-linecap="round"/>' +
+			'<path d="M28,18 H52 L48,44 H32 Z" fill="#FFE79A" stroke="#3E454E" stroke-width="2.5" stroke-linejoin="round"/>' +
+			'<path d="M24,18 H56 L50,10 H30 Z" fill="#3E454E"/>' +
+			'<path d="M30,10 C34,4 46,4 50,10 Z" fill="#F4FAFF"/>' +
+			'</svg>',
+
+		cloud:
+			'<svg viewBox="0 0 130 60">' +
+			'<ellipse cx="40" cy="38" rx="32" ry="17" fill="#6F7986"/>' +
+			'<ellipse cx="84" cy="36" rx="38" ry="19" fill="#7C8794"/>' +
+			'<ellipse cx="62" cy="24" rx="28" ry="18" fill="#8C97A4"/>' +
+			'<ellipse cx="56" cy="18" rx="16" ry="8" fill="#A4AEBA" opacity="0.7"/>' +
+			'</svg>',
+
+		sled:
+			'<svg viewBox="0 0 130 52">' +
+			'<path d="M30,18 V38 M92,18 V38" stroke="#8E6636" stroke-width="4" stroke-linecap="round"/>' +
+			'<path d="M8,42 H104 C118,42 124,32 118,22" fill="none" stroke="#D8574A" stroke-width="5" stroke-linecap="round"/>' +
+			'<path d="M14,8 H106 C110,8 110,18 106,18 H14 C10,18 10,8 14,8 Z" fill="#C79A66" stroke="#8E6636" stroke-width="2"/>' +
+			'<path d="M40,8 V18 M66,8 V18 M90,8 V18" stroke="#8E6636" stroke-width="1.6" opacity="0.7"/>' +
+			'</svg>',
+
+		/* ---- things to wear, lost and found ---- */
+
+		mitten:
+			'<svg viewBox="0 0 52 58">' +
+			'<path d="M34,22 C42,16 50,22 46,31 C44,36 37,36 34,32 Z" fill="#D8574A" stroke="#A33A30" stroke-width="2"/>' +
+			'<path d="M10,16 H34 V36 C34,49 28,55 22,55 C16,55 10,49 10,36 Z" fill="#D8574A" stroke="#A33A30" stroke-width="2"/>' +
+			'<path d="M8,4 H36 V17 H8 Z" fill="#F4E7DA" stroke="#CDBBA8" stroke-width="2" stroke-linejoin="round"/>' +
+			'<path d="M15,5 V16 M22,5 V16 M29,5 V16" stroke="#CDBBA8" stroke-width="1.4"/>' +
+			'<path d="M22,27 V43 M15,31 L29,39 M15,39 L29,31" stroke="#F4E7DA" stroke-width="2.2" stroke-linecap="round"/>' +
+			'</svg>',
+
+		sock:
+			'<svg viewBox="0 0 54 52">' +
+			'<path d="M14,4 H34 V26 L46,35 C52,41 46,50 38,47 L14,39 Z" fill="#EDE6D6" stroke="#B9AE98" stroke-width="2" stroke-linejoin="round"/>' +
+			'<path d="M14,4 H34 V11 H14 Z" fill="#D8574A" stroke="#A33A30" stroke-width="1.6"/>' +
+			'<path d="M14,16 H34 M14,21 H34" stroke="#D8574A" stroke-width="2.4"/>' +
+			'<path d="M40,36 C46,39 47,45 41,46 Z" fill="#D8574A"/>' +
+			'</svg>',
+
+		/* felt boots, a pair. Tall enough for a cat to sit behind. */
+		valenki:
+			'<svg viewBox="0 0 110 76">' +
+			'<path d="M10,6 H34 V44 C46,44 54,50 54,60 V70 H10 Z" fill="#A39B92" stroke="#6F6962" stroke-width="2.4" stroke-linejoin="round"/>' +
+			'<path d="M10,14 H34" stroke="#6F6962" stroke-width="2"/>' +
+			'<path d="M22,22 V34 M16,25 L28,31 M16,31 L28,25" stroke="#D8574A" stroke-width="2.2" stroke-linecap="round"/>' +
+			'<path d="M60,6 H84 V44 C96,44 104,50 104,60 V70 H60 Z" fill="#ADA59C" stroke="#6F6962" stroke-width="2.4" stroke-linejoin="round"/>' +
+			'<path d="M60,14 H84" stroke="#6F6962" stroke-width="2"/>' +
+			'<path d="M72,22 V34 M66,25 L78,31 M66,31 L78,25" stroke="#D8574A" stroke-width="2.2" stroke-linecap="round"/>' +
+			'</svg>',
+
+		/* the scarf pulled up over her nose. A band the colour of the scarf in
+		 * the rig, so it reads as that scarf and not a second one.             */
+		muffler:
+			'<svg viewBox="0 0 90 36">' +
+			'<path d="M4,10 C24,2 66,2 86,10 C89,20 85,29 77,31 C56,25 34,25 13,31 C5,29 1,20 4,10 Z" fill="#C85A6E" stroke="#A64354" stroke-width="2"/>' +
+			'<path d="M20,8 V26 M34,5 V24 M45,4 V23 M56,5 V24 M70,8 V26" stroke="#A64354" stroke-width="1.6" opacity="0.5"/>' +
+			'</svg>',
+
+		bathTowel:
+			'<svg viewBox="0 0 84 54">' +
+			'<path d="M6,32 C6,12 26,4 42,4 C58,4 78,12 78,32 L74,49 C64,43 54,50 42,45 C30,50 20,43 10,49 Z" fill="#6FC0DE" stroke="#4A9BB8" stroke-width="2" stroke-linejoin="round"/>' +
+			'<path d="M12,26 C22,15 62,15 72,26 M9,38 C24,29 60,29 75,38" fill="none" stroke="#EAF7FC" stroke-width="3" stroke-linecap="round" opacity="0.85"/>' +
+			'</svg>',
+
+		/* ---- warm things ---- */
+
+		/* cocoa, in a red mug so it cannot be mistaken for the tea */
+		cocoa:
+			'<svg viewBox="0 0 60 60">' +
+			'<path d="M17,14 C14,10 20,8 17,3 M30,13 C27,9 33,7 30,2" fill="none" stroke="#DCE8F4" stroke-width="2" stroke-linecap="round" opacity="0.8"/>' +
+			'<path d="M44,28 C54,28 56,34 56,38 C56,43 52,47 44,47" fill="none" stroke="#A33A30" stroke-width="4"/>' +
+			'<path d="M8,22 H44 V46 C44,53 38,57 26,57 C14,57 8,53 8,46 Z" fill="#D8574A" stroke="#A33A30" stroke-width="2"/>' +
+			'<path d="M9,36 H43" stroke="#F4E7DA" stroke-width="3" opacity="0.85"/>' +
+			'<ellipse cx="26" cy="22" rx="18" ry="5.4" fill="#6B4226" stroke="#F4E7DA" stroke-width="2.4"/>' +
+			'<circle cx="19" cy="21" r="3.8" fill="#FFF7EE"/><circle cx="28" cy="20" r="4.2" fill="#FFFFFF"/><circle cx="34" cy="23" r="3" fill="#FFF0E2"/>' +
+			'</svg>',
+
+		radiator:
+			'<svg viewBox="0 0 130 92">' +
+			'<path d="M112,72 H124 V90" fill="none" stroke="#9AA5AB" stroke-width="4" stroke-linecap="round"/>' +
+			'<circle cx="118" cy="72" r="5" fill="#D8574A" stroke="#A33A30" stroke-width="1.6"/>' +
+			'<path d="M14,84 V90 M100,84 V90" stroke="#9AA5AB" stroke-width="5" stroke-linecap="round"/>' +
+			'<g fill="#EEF2F4" stroke="#B4BEC6" stroke-width="2">' +
+			'<rect x="6" y="8" width="13" height="78" rx="6"/><rect x="21" y="8" width="13" height="78" rx="6"/>' +
+			'<rect x="36" y="8" width="13" height="78" rx="6"/><rect x="51" y="8" width="13" height="78" rx="6"/>' +
+			'<rect x="66" y="8" width="13" height="78" rx="6"/><rect x="81" y="8" width="13" height="78" rx="6"/>' +
+			'<rect x="96" y="8" width="13" height="78" rx="6"/>' +
+			'</g>' +
+			'<path d="M8,22 H107 M8,72 H107" stroke="#B4BEC6" stroke-width="3" opacity="0.7"/>' +
+			'</svg>',
+
+		/* warm air rising. Orange, so it is heat and not steam. */
+		heat:
+			'<svg viewBox="0 0 40 50">' +
+			'<path d="M8,48 C2,38 14,32 8,22 C4,14 12,10 8,2 M20,48 C14,38 26,32 20,22 C16,14 24,10 20,2 M32,48 C26,38 38,32 32,22 C28,14 36,10 32,2" ' +
+			'fill="none" stroke="#F2A45E" stroke-width="3.4" stroke-linecap="round" opacity="0.85"/>' +
+			'</svg>',
+
+		/* a quilt, drawn as the mound it makes over a lying cat */
+		blanket:
+			'<svg viewBox="0 0 160 100">' +
+			'<path d="M6,94 C6,50 30,10 80,10 C130,10 154,50 154,94 Z" fill="#5F8FC4" stroke="#3F6A9C" stroke-width="2.5"/>' +
+			'<path d="M17,78 C20,44 44,21 80,21 C116,21 140,44 143,78" fill="none" stroke="#F2D27A" stroke-width="5" stroke-linecap="round"/>' +
+			'<g fill="#F4E7DA" opacity="0.9">' +
+			'<circle cx="52" cy="50" r="5"/><circle cx="80" cy="40" r="5"/><circle cx="108" cy="50" r="5"/>' +
+			'<circle cx="38" cy="74" r="5"/><circle cx="66" cy="66" r="5"/><circle cx="94" cy="66" r="5"/><circle cx="122" cy="74" r="5"/>' +
+			'</g>' +
+			'<path d="M6,94 H154" stroke="#F4E7DA" stroke-width="7" stroke-linecap="round"/>' +
+			'<path d="M18,94 V99 M34,94 V99 M50,94 V99 M66,94 V99 M82,94 V99 M98,94 V99 M114,94 V99 M130,94 V99 M146,94 V99" stroke="#F4E7DA" stroke-width="2.4" stroke-linecap="round"/>' +
+			'</svg>',
+
+		hotBottle:
+			'<svg viewBox="0 0 52 74">' +
+			'<path d="M18,3 H34 V9 H18 Z" fill="#7A2E2B"/>' +
+			'<path d="M21,9 H31 V19 H21 Z" fill="#C24A45" stroke="#933330" stroke-width="1.6"/>' +
+			'<path d="M8,26 C8,20 14,17 26,17 C38,17 44,20 44,26 V62 C44,68 38,71 26,71 C14,71 8,68 8,62 Z" fill="#D9534F" stroke="#933330" stroke-width="2"/>' +
+			'<path d="M14,30 L38,46 M14,42 L38,58 M38,30 L14,46 M38,42 L14,58" stroke="#EE8A84" stroke-width="2" opacity="0.7"/>' +
+			'</svg>',
+
+		/* an iron stove with a lit window. The flame is a separate prop laid over
+		 * the window, so the fire can move while the stove stands still.       */
+		stove:
+			'<svg viewBox="0 0 100 124">' +
+			'<path d="M62,0 H76 V40 H62 Z" fill="#3A3F47" stroke="#24272C" stroke-width="2"/>' +
+			'<path d="M20,106 L16,122 M80,106 L84,122" stroke="#24272C" stroke-width="6" stroke-linecap="round"/>' +
+			'<path d="M16,44 H84 V102 C84,107 80,110 74,110 H26 C20,110 16,107 16,102 Z" fill="#4A4F57" stroke="#24272C" stroke-width="2.5"/>' +
+			'<path d="M10,36 H90 V46 H10 Z" fill="#5A606A" stroke="#24272C" stroke-width="2"/>' +
+			'<path d="M28,58 H72 V96 H28 Z" fill="#2A2D33" stroke="#1A1C20" stroke-width="2"/>' +
+			'<path d="M34,64 H66 V90 H34 Z" fill="#E8862E"/>' +
+			'<path d="M34,82 C40,74 46,84 50,76 C54,84 60,74 66,82 V90 H34 Z" fill="#F2B24A"/>' +
+			'<circle cx="77" cy="77" r="3" fill="#8C97A4"/>' +
+			'</svg>',
+
+		flame:
+			'<svg viewBox="0 0 24 34">' +
+			'<path d="M12,2 C19,12 22,18 22,23 C22,29 18,33 12,33 C6,33 2,29 2,23 C2,18 5,12 12,2 Z" fill="#F2913B"/>' +
+			'<path d="M12,13 C16,19 18,22 18,26 C18,30 15,32 12,32 C9,32 6,30 6,26 C6,22 8,19 12,13 Z" fill="#FFD75E"/>' +
+			'<path d="M12,22 C14,25 15,27 15,29 C15,31 13.5,32 12,32 C10.5,32 9,31 9,29 C9,27 10,25 12,22 Z" fill="#FFF6D0"/>' +
+			'</svg>',
+
+		/* the candle without its flame, for the same reason as the stove */
+		candle:
+			'<svg viewBox="0 0 44 70">' +
+			'<path d="M22,6 V14" stroke="#4A3B33" stroke-width="2" stroke-linecap="round"/>' +
+			'<path d="M13,14 H31 V56 H13 Z" fill="#FBF3E2" stroke="#D9CDB4" stroke-width="2"/>' +
+			'<path d="M13,14 C15,22 19,16 21,24 C22,18 26,20 27,14 Z" fill="#FFFFFF"/>' +
+			'<path d="M4,56 H40 C40,64 32,67 22,67 C12,67 4,64 4,56 Z" fill="#C9A45C" stroke="#9A7A3C" stroke-width="2"/>' +
+			'</svg>',
+
+		/* a reading lamp, for making sunshine on a day with none */
+		deskLamp:
+			'<svg viewBox="0 0 70 96">' +
+			'<path d="M36,88 L20,44 L44,24" fill="none" stroke="#6B7480" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>' +
+			'<ellipse cx="36" cy="89" rx="20" ry="5.5" fill="#4E5661" stroke="#3A4048" stroke-width="2"/>' +
+			'<circle cx="20" cy="44" r="3.4" fill="#3A4048"/>' +
+			'<path d="M34,14 L58,22 L62,44 L30,34 Z" fill="#5FA86A" stroke="#3E7A48" stroke-width="2" stroke-linejoin="round"/>' +
+			'<path d="M36,36 L58,43 C56,49 40,45 36,36 Z" fill="#FFE79A"/>' +
+			'</svg>',
+
+		spark:
+			'<svg viewBox="0 0 30 30">' +
+			'<path d="M15,1 L18,11 L29,15 L18,19 L15,29 L12,19 L1,15 L12,11 Z" fill="#FFE45E" stroke="#F0B429" stroke-width="1.2" stroke-linejoin="round"/>' +
+			'<path d="M15,9 L16.6,13.4 L21,15 L16.6,16.6 L15,21 L13.4,16.6 L9,15 L13.4,13.4 Z" fill="#FFFFFF"/>' +
+			'</svg>',
+
+		/* ---- wool ---- */
+
+		/* two needles and the piece that is on them */
+		knit:
+			'<svg viewBox="0 0 72 64">' +
+			'<path d="M20,30 H52 V56 C44,60 28,60 20,56 Z" fill="#C85A6E" stroke="#A64354" stroke-width="2" stroke-linejoin="round"/>' +
+			'<path d="M20,37 H52 M20,44 H52 M20,51 H52" stroke="#A64354" stroke-width="1.4" opacity="0.6"/>' +
+			'<path d="M8,6 L50,36 M64,6 L22,36" stroke="#D8C9A8" stroke-width="3.4" stroke-linecap="round"/>' +
+			'<circle cx="8" cy="6" r="4" fill="#E8D9B8" stroke="#B8A888" stroke-width="1.2"/><circle cx="64" cy="6" r="4" fill="#E8D9B8" stroke="#B8A888" stroke-width="1.2"/>' +
+			'</svg>',
+
+		/* yarn that has got the better of her: loops to lay over her body */
+		yarnTangle:
+			'<svg viewBox="0 0 120 80">' +
+			'<g fill="none" stroke-linecap="round" stroke-width="3.4">' +
+			'<path d="M4,44 C18,8 46,70 66,28 C80,2 108,26 116,52" stroke="#E58BA8"/>' +
+			'<path d="M8,62 C30,30 52,76 78,48 C92,34 104,60 112,70" stroke="#F6B8CC"/>' +
+			'<path d="M14,22 C34,44 60,6 84,40 C96,58 60,72 40,56 C26,44 30,26 46,24" stroke="#E58BA8"/>' +
+			'</g></svg>',
+
+		/* a thermometer that has nothing good to say: a short blue column */
+		thermoCold:
+			'<svg viewBox="0 0 44 130">' +
+			'<rect x="13" y="6" width="18" height="98" rx="9" fill="#EFF3F6" stroke="#9AA5AB" stroke-width="2"/>' +
+			'<circle cx="22" cy="110" r="14" fill="#EFF3F6" stroke="#9AA5AB" stroke-width="2"/>' +
+			'<rect x="18" y="84" width="8" height="24" rx="4" fill="#5C9BD6"/>' +
+			'<circle cx="22" cy="110" r="9" fill="#5C9BD6"/>' +
+			'<path d="M31,36 H37 M31,50 H37 M31,64 H37 M31,78 H37" stroke="#9AA5AB" stroke-width="2" stroke-linecap="round"/>' +
 			'</svg>'
 	};
 

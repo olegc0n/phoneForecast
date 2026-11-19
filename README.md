@@ -174,6 +174,7 @@ src/cat/
   props.js       bowls, books, desks, snowballs
   beats.js       the beat vocabulary a data scene is written in
   scenes.js      animations as data
+  scenes-winter.js  fifty more of them, for cold days and snow
   episodes.js    the catalogue, and the picker
   wardrobe.js    what she wears for the weather
   plan.js        the diary: a whole day, planned at midnight
@@ -228,7 +229,8 @@ appears after dark.
 ```
 node tools/check-plan.js                    # 5 working days + 5 holidays
 node tools/check-plan.js --full             # every slot
-node tools/check-plan.js --weather rain     # clear | rain | snow | hot | none
+node tools/check-plan.js --weather rain     # clear | hot | rain | snow | cold | sleet | none
+node tools/check-plan.js --weather snow --counts   # how often each animation ran
 node tools/check-plan.js --special          # the birthday and New Year
 node tools/check-plan.js --json             # the lot, as data
 ```
@@ -557,6 +559,27 @@ and `perDay: n` to override the automatic per-day cap.
 
 Coordinates are **percent of the stage**, never `vw` and never pixels —
 `window.innerWidth` is not trustworthy on this page.
+
+Two things a scene can ask for beyond the list of beats:
+
+- `live: true` — consecutive moves of the same thing chain instead of each one
+  starting again from rest, and a fade really fades. Every scene in
+  `scenes-winter.js` sets it; the ones in `scenes.js` predate it and were tuned
+  without. The comment on `L()` in `beats.js` has the reason.
+- `['also', verb, ...]` — runs a beat without moving the cursor, so the next one
+  starts at the same moment: snow falling while she walks, a ball rolling while
+  it grows.
+
+Then check it without a phone:
+
+```
+node tools/check-scenes.js              # every scene played through, PASS/FAIL
+node tools/check-scenes.js --only <id>  # one scene, with the time of each beat
+```
+
+It loads the real rig, frame driver, props and beats, plays each scene on a fake
+clock, and fails on an unknown verb or artwork, a prop used before it exists,
+anything drawn above the 63% line, and props or tint left behind at the end.
 
 The older `src/cat/episodes.js` holds seventeen hand-written animations from
 before the data format existed. They still work and the picker treats them

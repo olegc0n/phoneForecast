@@ -2,7 +2,8 @@
  *
  *   node tools/check-plan.js            5 working days + 5 holidays
  *   node tools/check-plan.js --full     every slot of every day, not just a summary
- *   node tools/check-plan.js --weather rain
+ *   node tools/check-plan.js --weather clear|hot|rain|snow|cold|sleet|none
+ *   node tools/check-plan.js --counts   how often each animation ran, per day
  *
  * This loads the REAL scenes.js, episodes.js and plan.js. Nothing about the
  * schedule is reimplemented here - only the browser is faked - so what it
@@ -58,6 +59,7 @@ load(config, 'config');
  * expected. dom.js has no top-level side effects, so just load it.           */
 load(read('src/core/dom.js'), 'dom.js');
 load(read('src/cat/scenes.js'), 'scenes.js');
+load(read('src/cat/scenes-winter.js'), 'scenes-winter.js');
 load(read('src/cat/episodes.js'), 'episodes.js');
 load(read('src/cat/plan.js'), 'plan.js');
 
@@ -80,6 +82,14 @@ var WX = {
 	snow:  { code: 'ovc_sn', sky: 'ovc', precip: 'sn', isThunder: false, isNight: false, temp: -4,
 	         wind: 5, windAngle: 200, humidity: 88, pressure: 748, pressureTrend: -1,
 	         sunriseMin: 8*60+40, sunsetMin: 16*60+50 },
+	/* mid-November as it usually is: a few degrees above zero, overcast, dry,
+	 * and dark by half past four */
+	cold:  { code: 'ovc', sky: 'ovc', precip: null, isThunder: false, isNight: false, temp: 3,
+	         wind: 4, windAngle: 220, humidity: 84, pressure: 746, pressureTrend: 0,
+	         sunriseMin: 8*60+20, sunsetMin: 16*60+25 },
+	sleet: { code: 'ovc_ra_sn', sky: 'ovc', precip: 'ra_sn', isThunder: false, isNight: false, temp: 1,
+	         wind: 6, windAngle: 220, humidity: 92, pressure: 742, pressureTrend: -2,
+	         sunriseMin: 8*60+20, sunsetMin: 16*60+25 },
 	none:  null
 };
 
@@ -198,6 +208,39 @@ if (argv.indexOf('--json') !== -1) {
 		});
 	});
 	console.log(JSON.stringify(out));
+	process.exit(0);
+}
+
+/* --counts  ->  how many times each animation is on the schedule, for one
+ * working day and one holiday side by side. The summary above only names the
+ * top six, which says nothing about whether the other seventy got a turn.   */
+if (argv.indexOf('--counts') !== -1) {
+	var cols = [['Mon', pick(1, 3)], ['Sat', pick(6, 3)]];
+	var table = {}, totals = [];
+	cols.forEach(function (col, ci) {
+		col[1].forEach(function (d, di) {
+			var key = ci * 3 + di;
+			var slots = build(d);
+			totals[key] = slots.length;
+			slots.forEach(function (s) {
+				if (!table[s.id]) table[s.id] = [0, 0, 0, 0, 0, 0];
+				table[s.id][key]++;
+			});
+		});
+	});
+	var cell = function (n) { return ('    ' + (n || '.')).slice(-4); };
+	console.log('\nweather: ' + wxName + '    times on the schedule, three Mondays then three Saturdays\n');
+	console.log('  ' + ('animation' + new Array(30).join(' ')).slice(0, 22) + '   Mon Mon Mon   Sat Sat Sat');
+	Episodes.list().forEach(function (e) {
+		var r = table[e.id];
+		if (!r) return;
+		console.log('  ' + (e.id + new Array(30).join(' ')).slice(0, 22) + '  ' +
+			cell(r[0]) + cell(r[1]) + cell(r[2]) + '  ' + cell(r[3]) + cell(r[4]) + cell(r[5]));
+	});
+	var never = Episodes.list().filter(function (e) { return !table[e.id]; }).map(function (e) { return e.id; });
+	console.log('\n  ' + Object.keys(table).length + ' of ' + Episodes.list().length + ' animations scheduled; ' +
+		totals[0] + ' slots a day');
+	console.log('  not eligible in this weather: ' + (never.join(', ') || '(none)') + '\n');
 	process.exit(0);
 }
 

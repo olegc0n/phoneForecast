@@ -55,6 +55,7 @@ var MODULES = [
 	'src/cat/props.js',
 	'src/cat/beats.js',
 	'src/cat/scenes.js',
+	'src/cat/scenes-winter.js',
 	'src/cat/episodes.js',
 	'src/cat/plan.js',
 	'src/cat/cat.js',
@@ -157,7 +158,7 @@ var STUDIO_MODULES = [
 	'src/core/dom.js', 'src/core/store.js', 'src/core/host.js', 'src/core/bus.js',
 	'src/cat/shapes.js', 'src/cat/rig.js', 'src/cat/anim.js', 'src/cat/alive.js',
 	'src/cat/wardrobe.js', 'src/cat/actions.js', 'src/cat/props.js',
-	'src/cat/beats.js', 'src/cat/scenes.js', 'src/cat/plan.js'
+	'src/cat/beats.js', 'src/cat/scenes.js', 'src/cat/scenes-winter.js', 'src/cat/plan.js'
 ];
 
 function bundleOf(list) {

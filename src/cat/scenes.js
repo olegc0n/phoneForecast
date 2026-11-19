@@ -27,6 +27,10 @@
  *   night     true | false
  *   thunder   true
  *   tempMin / tempMax / windMin
+ *
+ * `live: true` makes consecutive moves of the same thing chain instead of each
+ * one starting again from rest - see L() in beats.js. The winter scenes in
+ * scenes-winter.js all set it; the ones in this file predate it.
  */
 
 var Scenes = (function () {
@@ -94,7 +98,7 @@ var Scenes = (function () {
 	/* Returns the duration, which Episodes uses to size the activity. */
 	function run(def, aliveFn) {
 		cancel();
-		running = Beats.play(def.beats, aliveFn);
+		running = Beats.play(def.beats, aliveFn, { live: !!def.live });
 		return running.duration;
 	}
 
