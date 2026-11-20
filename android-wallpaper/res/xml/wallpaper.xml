@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the system's live wallpaper picker shows for Lili. settingsActivity is
+     resolved by the picker, not by us, so it is fully qualified. -->
+<wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
+    android:thumbnail="@drawable/wallpaper_thumb"
+    android:description="@string/wallpaper_description"
+    android:settingsActivity="com.lili.wallpaper.SettingsActivity" />

@@ -1,0 +1,111 @@
+package com.lili.wallpaper;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+/**
+ * Everything the user can set, in one SharedPreferences file.
+ *
+ * The settings screen writes it, and the look (bg_*, size, lift) only when the
+ * user applies a draft (Look.toPrefs, one apply()). Every wallpaper engine
+ * listens to it (they all run in this one process and share one
+ * SharedPreferences instance), so an applied change shows on the home screen
+ * with no page reload. Always reached through the application context, so that
+ * every caller gets that same instance.
+ */
+final class Prefs {
+
+    static final String FILE = "lili";
+
+    static final String BG_KIND = "bg_kind";       /* "preset" | "photo" */
+    static final String BG_PRESET = "bg_preset";   /* a name in Backdrop.PRESETS */
+    static final String BG_DIM = "bg_dim";         /* 0..60: % of black over a photo */
+    static final String BG_REV = "bg_rev";         /* bumped whenever a new photo is applied, so listeners fire */
+    static final String SIZE = "size";             /* 15..100: stage width, % of the largest 9:16 box */
+    static final String LIFT = "lift";             /* 0..45: stage bottom, % of the screen height */
+
+    /* Lock mode: the lock-screen picture is Lili's and the refresh job keeps it
+     * fresh. Nothing sets it true in this version (the feature is blocked; see
+     * LockPicture): it is only carried over from an earlier build by migrate(),
+     * and turned off by the Lock screen switch or the job. The home screen has
+     * no such key: it is whatever the system says (getWallpaperInfo()). */
+    static final String LOCK_ON = "lock_on";       /* boolean */
+
+    /* The lock-screen picture (LockPicture). Not "bg_": no view listens to these. */
+    static final String LOCK_ID = "lock_id";       /* getWallpaperId(FLAG_LOCK) after our last set; 0 = unknown */
+    static final String LOCK_AT = "lock_at";       /* when we last set it, System.currentTimeMillis() */
+    static final String LOCK_NOTE = "lock_note";   /* why lock mode turned itself off; "" = nothing to say */
+    static final String NOTE_CHANGED = "changed";  /* the lock wallpaper was changed outside Lili */
+
+    /* The wallpapers that were there before Lili took each screen (Backup). */
+    static final String BK_HOME = "bk_home";       /* "" | "static" | "live:<component>" */
+    static final String BK_LOCK = "bk_lock";       /* "" | "static" | "mirror" | "live:<component>" */
+
+    /* Keys of the three-button version, read once to carry lock mode over and then removed. */
+    private static final String OLD_WHERE = "where", OLD_BK_AT = "bk_at", OLD_BK_DENIED = "bk_denied";
+    private static volatile boolean migrated;
+
+    static final String KIND_PRESET = "preset";
+    static final String KIND_PHOTO = "photo";
+
+    static final String DEF_PRESET = "night";
+    static final int DEF_DIM = 20, DEF_SIZE = 60, DEF_LIFT = 22;
+    static final int DIM_MIN = 0, DIM_MAX = 60;
+    /* 100 is her size in the weather app; 15 makes her smaller than a launcher icon */
+    static final int SIZE_MIN = 15, SIZE_MAX = 100;
+    static final int LIFT_MIN = 0, LIFT_MAX = 45;
+
+    private Prefs() {}
+
+    static SharedPreferences of(Context context) {
+        SharedPreferences p = context.getApplicationContext().getSharedPreferences(FILE, Context.MODE_PRIVATE);
+        if (!migrated) migrate(p);
+        return p;
+    }
+
+    /* An install over the three-button version: "lock" or "both" meant lock
+     * mode on. Idempotent, so two threads doing it at once is harmless. */
+    private static void migrate(SharedPreferences p) {
+        migrated = true;
+        if (!p.contains(OLD_WHERE) && !p.contains(OLD_BK_AT) && !p.contains(OLD_BK_DENIED)) return;
+        String w = p.getString(OLD_WHERE, "");
+        SharedPreferences.Editor e = p.edit().remove(OLD_WHERE).remove(OLD_BK_AT).remove(OLD_BK_DENIED);
+        if (!p.contains(LOCK_ON)) e.putBoolean(LOCK_ON, "lock".equals(w) || "both".equals(w));
+        e.apply();
+    }
+
+    static int clamp(int v, int lo, int hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    static boolean photo(SharedPreferences p) {
+        return KIND_PHOTO.equals(p.getString(BG_KIND, KIND_PRESET));
+    }
+
+    static int dim(SharedPreferences p) {
+        return clamp(p.getInt(BG_DIM, DEF_DIM), DIM_MIN, DIM_MAX);
+    }
+
+    static int size(SharedPreferences p) {
+        return clamp(p.getInt(SIZE, DEF_SIZE), SIZE_MIN, SIZE_MAX);
+    }
+
+    static int lift(SharedPreferences p) {
+        return clamp(p.getInt(LIFT, DEF_LIFT), LIFT_MIN, LIFT_MAX);
+    }
+
+    /** Lock mode: the lock-screen picture is Lili's, and kept fresh. */
+    static boolean lockOn(SharedPreferences p) {
+        return p.getBoolean(LOCK_ON, false);
+    }
+
+    /** What the page's Wall.apply() and its boot config take, as applied: {"size":60,"lift":22} */
+    static String pageConfig(Context context) {
+        SharedPreferences p = of(context);
+        return pageConfig(size(p), lift(p));
+    }
+
+    static String pageConfig(int size, int lift) {
+        return "{\"size\":" + size + ",\"lift\":" + lift + "}";
+    }
+}

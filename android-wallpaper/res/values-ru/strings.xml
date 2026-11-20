@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wallpaper_description">Кошка, которая живёт на главном экране. Каждый раз, когда вы к нему возвращаетесь, она делает что-нибудь новое, а с 23:00 до 07:00 спит.</string>
+
+    <string name="hint_manual">Если не открылось, нажмите и подержите главный экран, выберите «Обои», затем «Живые обои», затем Lili.</string>
+
+    <string name="where_heading">Где живёт Лили</string>
+    <string name="where_home">Главный экран</string>
+    <string name="where_lock">Экран блокировки</string>
+    <string name="home_on">Лили, живые обои</string>
+    <string name="screen_previous">Ваши прежние обои</string>
+    <string name="lock_on">Картинка с Лили, обновлена %1$s</string>
+    <string name="lock_stale">Картинка с Лили от %1$s, больше не обновляется</string>
+    <string name="lock_updating">Обновляем картинку…</string>
+    <string name="lock_with_home">Лили, живые обои (вместе с главным экраном)</string>
+    <string name="lock_unavailable">Недоступно. Android не даёт приложениям оживлять экран блокировки. На чистом Android (Pixel, Motorola…) включите «Главный экран» и выберите в окне выбора обоев «Главный экран и экран блокировки».</string>
+    <string name="saving">Сохраняем ваши текущие обои…</string>
+    <string name="restoring">Возвращаем ваши прежние обои…</string>
+    <string name="pick_home_hint">Выберите «Главный экран и экран блокировки», чтобы она была и на экране блокировки, если телефон это позволяет (чистый Android). Huawei, Samsung, Xiaomi и Oppo показывают её только на главном экране.</string>
+    <string name="pick_old_home">На следующем экране выберите «Главный экран».</string>
+    <string name="pick_old_both">На следующем экране выберите «Главный экран и экран блокировки».</string>
+    <string name="backup_denied">Android не даёт Лили прочитать ваши текущие обои, поэтому сохранить их не получится. Когда вы её выключите, можно будет выбрать фото или стандартные обои.</string>
+    <string name="restore_failed">Не получилось вернуть обои: %1$s</string>
+    <string name="none_home">Прежние обои главного экрана не сохранены. Что поставить туда вместо Лили?</string>
+    <string name="none_lock">Прежние обои экрана блокировки не сохранены. Что поставить туда вместо Лили?</string>
+    <string name="system_default">Стандартные обои</string>
+    <string name="cancel">Отмена</string>
+    <string name="huawei_tip">Huawei: если картинка не появляется на экране блокировки, выключите «Журнал разблокировки» (Magazine unlock). Чтобы она обновлялась, разрешите Лили работать в фоне («Батарея», «Запуск приложений», «Управлять вручную»).</string>
+
+    <string name="background">Фон</string>
+    <string name="choose_photo">Выбрать фото…</string>
+    <string name="darken_photo">Затемнить фото</string>
+    <string name="size">Размер</string>
+    <string name="height">Высота</string>
+    <string name="preview">Посмотреть</string>
+    <string name="not_applied">Изменения ещё не применены</string>
+    <string name="apply">Применить</string>
+    <string name="apply_and_set">Применить и поставить на обои</string>
+    <string name="applied">Применено</string>
+    <string name="leave_unapplied">Изменения ещё не применены.</string>
+    <string name="discard">Не применять</string>
+    <string name="keep_editing">Продолжить настройку</string>
+
+    <string name="note_touch">На касания она пока не отвечает.</string>
+    <string name="photo_failed">Не получилось использовать эту картинку.</string>
+    <string name="no_webview">Android System WebView сейчас недоступен. Лили появится, когда он заработает.</string>
+</resources>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lili</string>
+    <string name="wallpaper_name">Lili</string>
+    <string name="wallpaper_description">A cat who lives on your home screen. Each time you come back to it she does something new, and from 23:00 to 07:00 she sleeps.</string>
+
+    <string name="hint_manual">If that does not open, long-press the home screen and choose Wallpapers, then Live wallpapers, then Lili.</string>
+
+    <string name="where_heading">Where Lili lives</string>
+    <string name="where_home">Home screen</string>
+    <string name="where_lock">Lock screen</string>
+    <string name="home_on">Lili, animated</string>
+    <string name="screen_previous">Your previous wallpaper</string>
+    <string name="lock_on">Lili picture, updated %1$s</string>
+    <string name="lock_stale">Lili picture from %1$s, no longer updated</string>
+    <string name="lock_updating">Updating the picture…</string>
+    <string name="lock_with_home">Lili, animated (with the home screen)</string>
+    <string name="lock_unavailable">Not available. Android doesn’t let apps animate the lock screen. On stock Android (Pixel, Motorola…), turn on Home screen and choose “Home screen and lock screen” in the picker.</string>
+    <string name="saving">Saving your current wallpaper…</string>
+    <string name="restoring">Putting your previous wallpaper back…</string>
+    <string name="pick_home_hint">Choose “Home screen and lock screen” to have her on the lock screen too, on phones that allow it (stock Android). Huawei, Samsung, Xiaomi and Oppo show her on the home screen only.</string>
+    <string name="pick_old_home">Choose “Home screen” on the next screen.</string>
+    <string name="pick_old_both">Choose “Home screen and lock screen” on the next screen.</string>
+    <string name="backup_denied">Android doesn’t let Lili read your current wallpaper, so she can’t save it. When you turn her off, you can choose a photo or the system default instead.</string>
+    <string name="restore_failed">Could not put the wallpaper back: %1$s</string>
+    <string name="none_home">Your previous home-screen wallpaper wasn’t saved. What should replace Lili there?</string>
+    <string name="none_lock">Your previous lock-screen wallpaper wasn’t saved. What should replace Lili there?</string>
+    <string name="system_default">System default</string>
+    <string name="cancel">Cancel</string>
+    <string name="huawei_tip">Huawei: if her picture does not show on the lock screen, turn off Magazine unlock. For updates every few hours, let Lili run in the background (Battery, App launch, Manage manually).</string>
+
+    <string name="background">Background</string>
+    <string name="choose_photo">Choose photo…</string>
+    <string name="darken_photo">Darken photo</string>
+    <string name="size">Size</string>
+    <string name="height">Height</string>
+    <string name="preview">Preview</string>
+    <string name="not_applied">Changes not applied yet</string>
+    <string name="apply">Apply</string>
+    <string name="apply_and_set">Apply and set as wallpaper</string>
+    <string name="applied">Applied</string>
+    <string name="leave_unapplied">Your changes aren’t applied yet.</string>
+    <string name="discard">Discard</string>
+    <string name="keep_editing">Keep editing</string>
+
+    <string name="note_touch">She does not react to touch yet.</string>
+    <string name="photo_failed">Could not use that picture.</string>
+    <string name="no_webview">Android System WebView is not available right now. Lili will appear when it is.</string>
+</resources>

@@ -1,0 +1,69 @@
+<!-- Lili, the live wallpaper: the cat on the home screen, and nothing else.
+     Built by tools/build-wallpaper.js into wallpaper.html. The cat's config,
+     CSS, artwork and scripts are injected from the shared sources at the four
+     INJECT markers; only what is below them in each block belongs to the
+     wallpaper. The background is not the page's: the WebView is transparent
+     and the Android side draws a preset or the user's photo behind it.
+     No doctype, like informer.base.html: every prop was tuned in quirks mode. -->
+
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+<!--INJECT:CAT_CONFIG-->
+</script>
+<script>
+/* ---------------- the wallpaper's own config ----------------
+   Re-declared after the cat's block above, so these win. One per line,
+   unindented: tools/check-wallpaper.js reads them the way the build does. */
+var cat_quiet_from = '23:00';   //she sleeps; never Cat.play inside this window
+var cat_quiet_to   = '07:00';
+var cat_touch      = false;     //no petting yet: the engine keeps touch off
+var cat_test       = false;
+var cat_plan_demo  = false;
+var wall_size        = 60;      //stage width, % of the largest 9:16 box
+var wall_lift        = 22;      //stage bottom, % of the viewport height
+var wall_fresh_after = 10;      //sec out of sight before a show starts a new animation
+var wall_sky_after   = 10800;   //sec out of sight before the sky is redrawn
+var wall_edge_fade   = true;    //fade props in at the wrapper's edges; false = hard clip
+var wall_gap_min     = 45;      //sec of idle life between animations
+var wall_gap_max     = 150;
+var wall_sky_every   = 5;       //animations per invented sky
+var wall_hemisphere  = 'auto';  //'auto' | 'north' | 'south' | 'none'
+var wall_browser_bg  = '#1d2b44';  //only when there is no native host behind the page
+</script>
+<style>
+<!--INJECT:CAT_CSS-->
+</style>
+<style>
+/* ---------------- the wallpaper's layout ----------------
+   THE STAGE IS THE INFORMER'S 9:16 BOX, scaled down and lifted. Wall.place()
+   sizes it in px: wall_size % of the largest 9:16 box that fits, centred, its
+   bottom edge wall_lift % of the screen height up. Props are placed in percent
+   of the stage, so they scale with her. #wl_view is the stage plus 15% of its
+   width on each side: it clips what the stages no longer clip, and fades it
+   at the edges (11.5% of the wrapper is that 15% margin). */
+html, body { width: 100%; height: 100%; background: transparent; margin: 0; overflow: hidden; }
+body { user-select: none; -webkit-user-select: none; }
+#wl_view { position: fixed; overflow: hidden; pointer-events: none; }
+#cat_stage, #cat_stage_back { position: absolute; top: 0; overflow: visible; }
+#cat_holder { width: 44%; height: 32.4%; }                  /* of the 9:16 stage */
+#wl_view.fade {
+	-webkit-mask-image: linear-gradient(to right, transparent 0, #000 11.5%, #000 88.5%, transparent 100%);
+	mask-image: linear-gradient(to right, transparent 0, #000 11.5%, #000 88.5%, transparent 100%);
+}
+</style>
+</head>
+<body>
+<div id="wl_view">
+	<div id="cat_stage_back"><div id="cat_props_back"></div></div>
+	<div id="cat_stage">
+		<div id="cat_holder"><!--INJECT:CAT_SVG--></div>
+		<div id="cat_props"></div>
+		<div id="cat_hit"></div>
+	</div>
+</div>
+
+<!--INJECT:JS-->
+</body>
+</html>

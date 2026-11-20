@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Framework-only themes: no AppCompat, so the build needs no AndroidX jars. -->
+    <!-- the application default -->
+    <style name="Lili" parent="@android:style/Theme.Material">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <!-- the preview: Lili and nothing else -->
+    <style name="LiliFullscreen" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <!-- the settings: opaque, nothing of the wallpaper shows through (a change
+         is seen in the preview, and reaches the wallpaper only when applied).
+         The window and the bars get SettingsActivity.PANEL in onCreate; black
+         until then. -->
+    <style name="LiliSettings" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+</resources>
