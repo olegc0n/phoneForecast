@@ -5,8 +5,9 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 
 /**
- * How Lili looks: what is behind her (a preset, or a photo and how dark it
- * is), her size and how high she stands. Immutable.
+ * How Lili looks: what is behind her (a preset, a photo of one's own, or "My
+ * wallpaper", and how dark a picture is), her size and how high she stands.
+ * Immutable.
  *
  * The settings screen edits one of these as a draft. Nothing reaches prefs -
  * so neither the running wallpaper nor the lock picture changes - until the
@@ -15,30 +16,41 @@ import android.os.Bundle;
  * is (a LiliView given a Look). The live wallpaper and the lock picture read
  * prefs, as they always did.
  *
- * The photo. draftPhoto false is the applied one, files/bg.jpg. True is one
- * chosen in the settings screen and not applied yet, files/bg_draft.jpg
- * (Backdrop.DRAFT_FILE), imported at `stamp`, which tells two picks apart for
- * the decode cache. A preset look has neither: the constructor drops them, so
- * a draft that moves to a preset no longer refers to the draft photo.
+ * The kind (Prefs.KIND_*):
+ *   preset    one of Backdrop.PRESETS
+ *   photo     the "Choose photo..." slot. draftPhoto false is the applied one,
+ *             files/bg.jpg. True is one chosen in the settings screen and not
+ *             applied yet, files/bg_draft.jpg (Backdrop.DRAFT_FILE), imported at
+ *             `stamp`, which tells two picks apart for the decode cache.
+ *   original  "My wallpaper": the picture the user had as their home wallpaper,
+ *             kept for good as files/original.jpg (Original). A slot of its own:
+ *             choosing a photo never replaces it.
+ * Only a photo has draftPhoto and stamp: the constructor drops them otherwise,
+ * so a draft that moves away from a draft photo no longer refers to it. The
+ * darkening applies to both pictures (picture()).
  *
- * equals() compares what is seen: the preset only when there is no photo, the
- * darkening and the photo only when there is one.
+ * equals() compares what is seen: the preset only for a preset, the darkening
+ * only for a picture, the draft photo and its stamp only for a photo.
  */
 final class Look {
 
     /** An Intent extra (a Bundle) carrying a look: settings to the preview, and back on Apply. */
     static final String EXTRA = "com.lili.wallpaper.LOOK";
 
-    final boolean photo;        /* a photo behind her, not a preset */
+    final String kind;          /* Prefs.KIND_PRESET | KIND_PHOTO | KIND_ORIGINAL */
+    final boolean photo;        /* the "Choose photo..." picture behind her */
+    final boolean original;     /* My wallpaper behind her */
     final String preset;        /* a name in Backdrop.PRESETS */
-    final int dim;              /* % of black over the photo */
+    final int dim;              /* % of black over a picture */
     final int size;             /* stage width, % of the largest 9:16 box */
     final int lift;             /* stage bottom, % of the screen height */
     final boolean draftPhoto;   /* the photo is files/bg_draft.jpg, not applied yet */
     final long stamp;           /* ...imported then; 0 without a draft photo */
 
-    Look(boolean photo, String preset, int dim, int size, int lift, boolean draftPhoto, long stamp) {
-        this.photo = photo;
+    Look(String kind, String preset, int dim, int size, int lift, boolean draftPhoto, long stamp) {
+        this.kind = Prefs.knownKind(kind) ? kind : Prefs.KIND_PRESET;
+        this.photo = Prefs.KIND_PHOTO.equals(this.kind);
+        this.original = Prefs.KIND_ORIGINAL.equals(this.kind);
         this.preset = Backdrop.known(preset) ? preset : Prefs.DEF_PRESET;
         this.dim = Prefs.clamp(dim, Prefs.DIM_MIN, Prefs.DIM_MAX);
         this.size = Prefs.clamp(size, Prefs.SIZE_MIN, Prefs.SIZE_MAX);
@@ -47,9 +59,14 @@ final class Look {
         this.stamp = this.draftPhoto ? stamp : 0;
     }
 
-    /** What is applied now. */
+    /** A picture is behind her (a photo or My wallpaper): the darkening applies. */
+    boolean picture() {
+        return photo || original;
+    }
+
+    /** What is applied now. Before the first Apply: My wallpaper once it is kept (Prefs.kind). */
     static Look fromPrefs(SharedPreferences p) {
-        return new Look(Prefs.photo(p), p.getString(Prefs.BG_PRESET, Prefs.DEF_PRESET),
+        return new Look(Prefs.kind(p), p.getString(Prefs.BG_PRESET, Prefs.DEF_PRESET),
             Prefs.dim(p), Prefs.size(p), Prefs.lift(p), false, 0);
     }
 
@@ -60,7 +77,7 @@ final class Look {
      */
     void toPrefs(SharedPreferences p, int rev) {
         p.edit()
-            .putString(Prefs.BG_KIND, photo ? Prefs.KIND_PHOTO : Prefs.KIND_PRESET)
+            .putString(Prefs.BG_KIND, kind)
             .putString(Prefs.BG_PRESET, preset)
             .putInt(Prefs.BG_DIM, dim)
             .putInt(Prefs.SIZE, size)
@@ -70,34 +87,39 @@ final class Look {
     }
 
     Look withPreset(String name) {
-        return new Look(false, name, dim, size, lift, false, 0);
+        return new Look(Prefs.KIND_PRESET, name, dim, size, lift, false, 0);
+    }
+
+    /** My wallpaper behind her (files/original.jpg). */
+    Look withOriginal() {
+        return new Look(Prefs.KIND_ORIGINAL, preset, dim, size, lift, false, 0);
     }
 
     /** A photo just imported into files/bg_draft.jpg. */
     Look withDraftPhoto(long when) {
-        return new Look(true, preset, dim, size, lift, true, when);
+        return new Look(Prefs.KIND_PHOTO, preset, dim, size, lift, true, when);
     }
 
     Look withDim(int v) {
-        return new Look(photo, preset, v, size, lift, draftPhoto, stamp);
+        return new Look(kind, preset, v, size, lift, draftPhoto, stamp);
     }
 
     Look withSize(int v) {
-        return new Look(photo, preset, dim, v, lift, draftPhoto, stamp);
+        return new Look(kind, preset, dim, v, lift, draftPhoto, stamp);
     }
 
     Look withLift(int v) {
-        return new Look(photo, preset, dim, size, v, draftPhoto, stamp);
+        return new Look(kind, preset, dim, size, v, draftPhoto, stamp);
     }
 
     /** Her size and height from this one, the backdrop from `o`. */
     Look withBackgroundOf(Look o) {
-        return new Look(o.photo, o.preset, o.dim, size, lift, o.draftPhoto, o.stamp);
+        return new Look(o.kind, o.preset, o.dim, size, lift, o.draftPhoto, o.stamp);
     }
 
     /** As it is once applied: its photo, if any, is files/bg.jpg. */
     Look applied() {
-        return new Look(photo, preset, dim, size, lift, false, 0);
+        return new Look(kind, preset, dim, size, lift, false, 0);
     }
 
     /** What the page's boot config and Wall.apply() take. */
@@ -109,7 +131,7 @@ final class Look {
 
     Bundle toBundle() {
         Bundle b = new Bundle();
-        b.putBoolean("photo", photo);
+        b.putString("kind", kind);
         b.putString("preset", preset);
         b.putInt("dim", dim);
         b.putInt("size", size);
@@ -124,7 +146,9 @@ final class Look {
         if (b == null) return null;
         try {
             if (!b.containsKey("size")) return null;
-            return new Look(b.getBoolean("photo"), b.getString("preset"), b.getInt("dim", Prefs.DEF_DIM),
+            String kind = b.getString("kind");
+            if (kind == null) kind = b.getBoolean("photo") ? Prefs.KIND_PHOTO : Prefs.KIND_PRESET;  /* an older build's */
+            return new Look(kind, b.getString("preset"), b.getInt("dim", Prefs.DEF_DIM),
                 b.getInt("size", Prefs.DEF_SIZE), b.getInt("lift", Prefs.DEF_LIFT),
                 b.getBoolean("draft_photo"), b.getLong("stamp"));
         } catch (RuntimeException e) {
@@ -151,16 +175,17 @@ final class Look {
         if (o == this) return true;
         if (!(o instanceof Look)) return false;
         Look l = (Look) o;
-        if (photo != l.photo || size != l.size || lift != l.lift) return false;
-        if (!photo) return preset.equals(l.preset);
-        return dim == l.dim && draftPhoto == l.draftPhoto && stamp == l.stamp;
+        if (!kind.equals(l.kind) || size != l.size || lift != l.lift) return false;
+        if (!picture()) return preset.equals(l.preset);
+        if (dim != l.dim) return false;
+        return !photo || (draftPhoto == l.draftPhoto && stamp == l.stamp);
     }
 
     @Override
     public int hashCode() {
-        int h = (photo ? 1 : 0) * 31 + size;
+        int h = kind.hashCode() * 31 + size;
         h = h * 31 + lift;
-        if (!photo) return h * 31 + preset.hashCode();
+        if (!picture()) return h * 31 + preset.hashCode();
         h = h * 31 + dim;
         h = h * 31 + (draftPhoto ? 1 : 0);
         return h * 31 + (int) (stamp ^ (stamp >>> 32));
@@ -168,7 +193,8 @@ final class Look {
 
     @Override
     public String toString() {
-        return (photo ? "photo" + (draftPhoto ? " (draft " + stamp + ")" : "") + " dim " + dim : preset) +
-            ", size " + size + ", lift " + lift;
+        String bg = photo ? "photo" + (draftPhoto ? " (draft " + stamp + ")" : "") + " dim " + dim
+                  : original ? "my wallpaper dim " + dim : preset;
+        return bg + ", size " + size + ", lift " + lift;
     }
 }

@@ -420,8 +420,8 @@ final class LockPicture {
         }
     }
 
-    /** RGBA_8888 frame -> ARGB_8888 Bitmap (the same bytes in memory), rows unpadded. */
-    private static Bitmap copy(Image img) {
+    /** RGBA_8888 frame -> ARGB_8888 Bitmap (the same bytes in memory), rows unpadded. CaptureActivity uses it too. */
+    static Bitmap copy(Image img) {
         int w = img.getWidth(), h = img.getHeight();
         Image.Plane plane = img.getPlanes()[0];
         int ps = plane.getPixelStride(), rs = plane.getRowStride();

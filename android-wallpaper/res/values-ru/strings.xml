@@ -4,22 +4,36 @@
 
     <string name="hint_manual">Если не открылось, нажмите и подержите главный экран, выберите «Обои», затем «Живые обои», затем Lili.</string>
 
+    <!-- настройки: где она живёт, только для чтения -->
     <string name="where_heading">Где живёт Лили</string>
+    <string name="status_none">Не установлена: Лили ещё не ваши обои. Нажмите «Посмотреть», оставьте «Главный экран» включённым и нажмите «Применить».</string>
+    <string name="status_home">Лили сейчас: на главном экране</string>
+    <string name="status_both">Лили сейчас: на главном экране и экране блокировки (живые обои)</string>
+    <string name="status_lock_live">Лили сейчас: на экране блокировки (живые обои)</string>
+    <string name="status_home_picture">Лили сейчас: на главном экране, а её картинка — на экране блокировки</string>
+    <string name="status_picture">Лили сейчас: на экране блокировки (картинка)</string>
+    <string name="saving">Сохраняем ваши текущие обои…</string>
+    <string name="restoring">Возвращаем ваши прежние обои…</string>
+
+    <!-- переключатели предпросмотра: план, выполняется по «Применить» -->
     <string name="where_home">Главный экран</string>
     <string name="where_lock">Экран блокировки</string>
     <string name="home_on">Лили, живые обои</string>
-    <string name="screen_previous">Ваши прежние обои</string>
+    <string name="home_will_set">После «Применить» Лили встанет на главный экран</string>
+    <string name="home_will_restore">После «Применить» вернутся ваши прежние обои</string>
+    <string name="home_will_keep">Ваши текущие обои останутся</string>
     <string name="lock_on">Картинка с Лили, обновлена %1$s</string>
     <string name="lock_stale">Картинка с Лили от %1$s, больше не обновляется</string>
     <string name="lock_updating">Обновляем картинку…</string>
     <string name="lock_with_home">Лили, живые обои (вместе с главным экраном)</string>
+    <string name="lock_leaves_with_home">Уйдёт вместе с главным экраном</string>
     <string name="lock_unavailable">Недоступно. Android не даёт приложениям оживлять экран блокировки. На чистом Android (Pixel, Motorola…) включите «Главный экран» и выберите в окне выбора обоев «Главный экран и экран блокировки».</string>
-    <string name="saving">Сохраняем ваши текущие обои…</string>
-    <string name="restoring">Возвращаем ваши прежние обои…</string>
+
+    <!-- выполнение плана -->
     <string name="pick_home_hint">Выберите «Главный экран и экран блокировки», чтобы она была и на экране блокировки, если телефон это позволяет (чистый Android). Huawei, Samsung, Xiaomi и Oppo показывают её только на главном экране.</string>
     <string name="pick_old_home">На следующем экране выберите «Главный экран».</string>
     <string name="pick_old_both">На следующем экране выберите «Главный экран и экран блокировки».</string>
-    <string name="backup_denied">Android не даёт Лили прочитать ваши текущие обои, поэтому сохранить их не получится. Когда вы её выключите, можно будет выбрать фото или стандартные обои.</string>
+    <string name="backup_denied">Android не даёт Лили прочитать ваши текущие обои, поэтому сохранить их не получится. Когда вы её выключите, она вернёт «Мои обои», если они у неё есть, или предложит выбрать фото или стандартные обои.</string>
     <string name="restore_failed">Не получилось вернуть обои: %1$s</string>
     <string name="none_home">Прежние обои главного экрана не сохранены. Что поставить туда вместо Лили?</string>
     <string name="none_lock">Прежние обои экрана блокировки не сохранены. Что поставить туда вместо Лили?</string>
@@ -27,6 +41,16 @@
     <string name="cancel">Отмена</string>
     <string name="huawei_tip">Huawei: если картинка не появляется на экране блокировки, выключите «Журнал разблокировки» (Magazine unlock). Чтобы она обновлялась, разрешите Лили работать в фоне («Батарея», «Запуск приложений», «Управлять вручную»).</string>
 
+    <!-- Мои обои -->
+    <string name="my_wallpaper">Мои обои</string>
+    <string name="orig_all_files">Чтобы сохранить копию ваших текущих обоев, разрешите Лили «Доступ ко всем файлам». Android 13 и новее даёт прочитать обои только с этим разрешением. Ничего другого Лили не читает.</string>
+    <string name="orig_live">Ваши текущие обои живые, картинки с них сохранить нельзя. Если они есть у вас в фото, выберите их — они станут «Моими обоями».</string>
+    <string name="orig_unreadable">Лили не смогла сохранить копию ваших текущих обоев. Если они есть у вас в фото, выберите их — они станут «Моими обоями».</string>
+    <string name="orig_allow">Разрешить</string>
+    <string name="orig_pick">Выбрать из фото</string>
+    <string name="orig_pick_instead">Лучше выбрать из фото</string>
+
+    <!-- вид -->
     <string name="background">Фон</string>
     <string name="choose_photo">Выбрать фото…</string>
     <string name="darken_photo">Затемнить фото</string>
@@ -35,11 +59,27 @@
     <string name="preview">Посмотреть</string>
     <string name="not_applied">Изменения ещё не применены</string>
     <string name="apply">Применить</string>
-    <string name="apply_and_set">Применить и поставить на обои</string>
     <string name="applied">Применено</string>
     <string name="leave_unapplied">Изменения ещё не применены.</string>
     <string name="discard">Не применять</string>
     <string name="keep_editing">Продолжить настройку</string>
+
+    <!-- значки в предпросмотре и снимок экрана -->
+    <string name="show_icons">Показывать значки</string>
+    <string name="icons_drawn">Нарисованные</string>
+    <string name="icons_real">Настоящие</string>
+    <string name="capture_real">Взять мой главный экран</string>
+    <string name="capture_need_lili">Чтобы снять ваш главный экран, сначала поставьте Лили на обои</string>
+    <string name="preview_tap_hint">Коснитесь картинки, чтобы скрыть эту панель.</string>
+    <string name="capture_entire_hint">На следующем экране выберите «Весь экран».</string>
+    <string name="capture_channel">Снимок главного экрана</string>
+    <string name="capture_notice">Лили снимает ваш главный экран</string>
+    <string name="capture_done">Ваш главный экран теперь в предпросмотре.</string>
+    <string name="capture_denied">Снимок отменён.</string>
+    <string name="capture_nothing">Лили не нашла свои обои на снимке. Выберите «Весь экран» и попробуйте ещё раз.</string>
+    <string name="capture_failed">Не получилось снять главный экран: %1$s</string>
+    <string name="mock_apps">Телефон,Сообщения,Камера,Фото,Часы,Карты,Музыка,Почта,Заметки,Погода</string>
+    <string name="mock_folder">Сервисы</string>
 
     <string name="note_touch">На касания она пока не отвечает.</string>
     <string name="photo_failed">Не получилось использовать эту картинку.</string>

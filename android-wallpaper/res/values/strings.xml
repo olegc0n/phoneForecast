@@ -6,22 +6,36 @@
 
     <string name="hint_manual">If that does not open, long-press the home screen and choose Wallpapers, then Live wallpapers, then Lili.</string>
 
+    <!-- settings: where she lives, read-only -->
     <string name="where_heading">Where Lili lives</string>
+    <string name="status_none">Not set: Lili isn’t your wallpaper yet. Tap Preview, keep Home screen on and tap Apply.</string>
+    <string name="status_home">Lili is on: home screen</string>
+    <string name="status_both">Lili is on: home and lock screen (animated)</string>
+    <string name="status_lock_live">Lili is on: lock screen (animated)</string>
+    <string name="status_home_picture">Lili is on: home screen, and her picture on the lock screen</string>
+    <string name="status_picture">Lili is on: lock screen (her picture)</string>
+    <string name="saving">Saving your current wallpaper…</string>
+    <string name="restoring">Putting your previous wallpaper back…</string>
+
+    <!-- the preview's switches: the plan, carried out on Apply -->
     <string name="where_home">Home screen</string>
     <string name="where_lock">Lock screen</string>
     <string name="home_on">Lili, animated</string>
-    <string name="screen_previous">Your previous wallpaper</string>
+    <string name="home_will_set">Lili takes the home screen after Apply</string>
+    <string name="home_will_restore">Your previous wallpaper comes back after Apply</string>
+    <string name="home_will_keep">Your current wallpaper stays</string>
     <string name="lock_on">Lili picture, updated %1$s</string>
     <string name="lock_stale">Lili picture from %1$s, no longer updated</string>
     <string name="lock_updating">Updating the picture…</string>
     <string name="lock_with_home">Lili, animated (with the home screen)</string>
+    <string name="lock_leaves_with_home">Leaves with the home screen</string>
     <string name="lock_unavailable">Not available. Android doesn’t let apps animate the lock screen. On stock Android (Pixel, Motorola…), turn on Home screen and choose “Home screen and lock screen” in the picker.</string>
-    <string name="saving">Saving your current wallpaper…</string>
-    <string name="restoring">Putting your previous wallpaper back…</string>
+
+    <!-- carrying out the plan -->
     <string name="pick_home_hint">Choose “Home screen and lock screen” to have her on the lock screen too, on phones that allow it (stock Android). Huawei, Samsung, Xiaomi and Oppo show her on the home screen only.</string>
     <string name="pick_old_home">Choose “Home screen” on the next screen.</string>
     <string name="pick_old_both">Choose “Home screen and lock screen” on the next screen.</string>
-    <string name="backup_denied">Android doesn’t let Lili read your current wallpaper, so she can’t save it. When you turn her off, you can choose a photo or the system default instead.</string>
+    <string name="backup_denied">Android doesn’t let Lili read your current wallpaper, so she can’t save it. When you turn her off, she puts back “My wallpaper” if she has it, or lets you choose a photo or the system default.</string>
     <string name="restore_failed">Could not put the wallpaper back: %1$s</string>
     <string name="none_home">Your previous home-screen wallpaper wasn’t saved. What should replace Lili there?</string>
     <string name="none_lock">Your previous lock-screen wallpaper wasn’t saved. What should replace Lili there?</string>
@@ -29,6 +43,16 @@
     <string name="cancel">Cancel</string>
     <string name="huawei_tip">Huawei: if her picture does not show on the lock screen, turn off Magazine unlock. For updates every few hours, let Lili run in the background (Battery, App launch, Manage manually).</string>
 
+    <!-- My wallpaper -->
+    <string name="my_wallpaper">My wallpaper</string>
+    <string name="orig_all_files">To keep a copy of your current wallpaper, allow Lili “All files access”. Android 13 and newer allow reading the wallpaper only with this permission. Lili reads nothing else.</string>
+    <string name="orig_live">Your current wallpaper is animated, so there is no picture of it to keep. If you have it as a photo, pick it to keep it as “My wallpaper”.</string>
+    <string name="orig_unreadable">Lili couldn’t get a copy of your current wallpaper. If you have it as a photo, pick it to keep it as “My wallpaper”.</string>
+    <string name="orig_allow">Allow</string>
+    <string name="orig_pick">Pick from photos</string>
+    <string name="orig_pick_instead">Pick from photos instead</string>
+
+    <!-- the look -->
     <string name="background">Background</string>
     <string name="choose_photo">Choose photo…</string>
     <string name="darken_photo">Darken photo</string>
@@ -37,11 +61,27 @@
     <string name="preview">Preview</string>
     <string name="not_applied">Changes not applied yet</string>
     <string name="apply">Apply</string>
-    <string name="apply_and_set">Apply and set as wallpaper</string>
     <string name="applied">Applied</string>
     <string name="leave_unapplied">Your changes aren’t applied yet.</string>
     <string name="discard">Discard</string>
     <string name="keep_editing">Keep editing</string>
+
+    <!-- the preview's icons layer and the capture -->
+    <string name="show_icons">Show icons</string>
+    <string name="icons_drawn">Drawn icons</string>
+    <string name="icons_real">Real icons</string>
+    <string name="capture_real">Use my real home screen</string>
+    <string name="capture_need_lili">Set Lili as your wallpaper first to capture your real home screen</string>
+    <string name="preview_tap_hint">Tap the picture to hide this panel.</string>
+    <string name="capture_entire_hint">On the next screen, choose “Entire screen”.</string>
+    <string name="capture_channel">Home screen capture</string>
+    <string name="capture_notice">Lili is capturing your home screen</string>
+    <string name="capture_done">Your home screen is in the preview now.</string>
+    <string name="capture_denied">Capture cancelled.</string>
+    <string name="capture_nothing">Lili couldn’t find her wallpaper in the capture. Choose “Entire screen” and try again.</string>
+    <string name="capture_failed">Couldn’t capture your home screen: %1$s</string>
+    <string name="mock_apps">Phone,Messages,Camera,Photos,Clock,Maps,Music,Mail,Notes,Weather</string>
+    <string name="mock_folder">Tools</string>
 
     <string name="note_touch">She does not react to touch yet.</string>
     <string name="photo_failed">Could not use that picture.</string>

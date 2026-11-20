@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * What is behind Lili: one of six dark presets, or the user's own photo.
+ * What is behind Lili: one of six dark presets, the user's own photo, or "My
+ * wallpaper" - the picture they had as wallpaper, kept by Original as
+ * files/original.jpg (its own slot here, decoded by Prefs.ORIG_AT; only read).
  *
  * Drawn natively, under a transparent WebView, by one routine that also serves
  * the fallbacks (no WebView, no virtual display), the colours handed to the
@@ -77,6 +79,7 @@ final class Backdrop {
     private static final Object LOCK = new Object();
     private static final Slot APPLIED = new Slot(PHOTO_FILE);
     private static final Slot DRAFT = new Slot(DRAFT_FILE);
+    private static final Slot ORIGINAL = new Slot(Original.FILE);    /* My wallpaper: decoded, never written */
 
     private Backdrop() {}
 
@@ -97,7 +100,7 @@ final class Backdrop {
 
     /** The backdrop of `look`, filling w x h: the preview of a draft. */
     static void draw(Canvas canvas, int w, int h, Context context, Look look) {
-        Bitmap bmp = look.photo ? photo(context, look) : null;
+        Bitmap bmp = look.picture() ? photo(context, look) : null;
         if (bmp == null) {
             drawPreset(canvas, w, h, look.preset);
             return;
@@ -126,12 +129,14 @@ final class Backdrop {
     }
 
     /**
-     * The photo of `look`, decoded once per revision: the applied one (bg.jpg,
-     * keyed by bg_rev) or the draft (bg_draft.jpg, keyed by its import stamp).
-     * Null if there is none or it cannot be read: the caller falls back to the
-     * preset. The first decode of each happens on the main thread.
+     * The picture of `look`, decoded once per revision: My wallpaper
+     * (original.jpg, keyed by orig_at), the applied photo (bg.jpg, keyed by
+     * bg_rev) or the draft (bg_draft.jpg, keyed by its import stamp). Null if
+     * there is none or it cannot be read: the caller falls back to the preset.
+     * The first decode of each happens on the main thread.
      */
     static Bitmap photo(Context context, Look look) {
+        if (look.original) return decode(context, ORIGINAL, Prefs.of(context).getLong(Prefs.ORIG_AT, 0));
         if (look.draftPhoto) return decode(context, DRAFT, look.stamp);
         return decode(context, APPLIED, Prefs.of(context).getInt(Prefs.BG_REV, 0));
     }
@@ -210,7 +215,8 @@ final class Backdrop {
      * thread; throws on failure. The settings screen imports into
      * files/bg_draft.jpg (draftFile), never straight into bg.jpg. "Restore from
      * photo" uses it too, so a photo put back as a wallpaper is upright and
-     * screen-sized like the backdrop.
+     * screen-sized like the backdrop, and so does Original, into a part file it
+     * then renames - never into original.jpg itself.
      */
     static void importPhoto(Context context, Uri uri, File dst) throws IOException {
         Context app = context.getApplicationContext();

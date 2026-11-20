@@ -1,21 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Lili, the live wallpaper. A WallpaperService rendering assets/wallpaper.html
      onto the home screen, a still picture of her for the lock screen, a
-     settings screen (also the launcher icon) and a full-screen preview of
-     settings not applied yet, with Apply and Cancel.
+     settings screen (also the launcher icon), a full-screen preview of
+     settings not applied yet, with Apply, Cancel, the plan for the home and
+     lock screens and an icons layer, and the capture of the real home screen
+     for that layer.
 
-     Permissions, all for the user's previous wallpapers and the lock-screen
-     picture (blocked in this version: nothing turns it on, but a picture left
-     from an earlier build is kept fresh until it is turned off); the page
-     itself still loads nothing it did not ship with:
-       SET_WALLPAPER           putting a saved wallpaper back, and the lock-screen
-                               picture (setBitmap FLAG_LOCK). Normal: no prompt.
+     Permissions; the page itself still loads nothing it did not ship with:
+       SET_WALLPAPER           putting a saved wallpaper (or My wallpaper) back,
+                               and the lock-screen picture (setBitmap FLAG_LOCK).
+                               Normal: no prompt.
        RECEIVE_BOOT_COMPLETED  the lock picture's 3-hourly refresh job is persisted
-                               across reboots
-       READ_EXTERNAL_STORAGE   reading the current wallpapers to save them, before
-                               Lili takes the home screen. Asked for at run time,
-                               only where it helps (API 23-32); Lili carries on
-                               without it.
+                               across reboots (blocked in this version: only a
+                               picture left from an earlier build is kept fresh)
+       READ_EXTERNAL_STORAGE   reading the current wallpaper - to keep it as My
+                               wallpaper, and to save it before Lili takes the
+                               home screen. Asked for at run time, only where it
+                               helps (API 23-32); Lili carries on without it.
+       MANAGE_EXTERNAL_STORAGE "All files access": from Android 13 (API 33) the
+                               only way an app may read the wallpaper, for My
+                               wallpaper. The user grants it in the system
+                               settings, from a card that says why; Lili reads
+                               nothing else with it. (Play would reject this;
+                               Lili is distributed through GitHub.)
+       FOREGROUND_SERVICE      the capture service (API 28+). Normal.
+       FOREGROUND_SERVICE_MEDIA_PROJECTION
+                               ...of type mediaProjection (API 34+). Normal. The
+                               capture itself is allowed by the user, each time,
+                               in the system's screen-capture dialog.
      No version here: tools/build-wallpaper-apk.ps1 injects android-wallpaper/VERSION.
      `package` is the Java namespace and equals $AppId in
      tools/build-wallpaper-apk.ps1 (tools/check-wallpaper.js asserts that).
@@ -29,6 +41,9 @@
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <application
         android:label="@string/app_name"
@@ -37,8 +52,8 @@
         android:allowBackup="false"
         android:theme="@style/Lili">
 
-        <!-- not recreated on rotation: a switch's backup, restore or dialog in
-             flight stays with the screen that started it -->
+        <!-- not recreated on rotation: a backup, restore or dialog in flight
+             stays with the screen that started it -->
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
@@ -55,6 +70,25 @@
             android:exported="true"
             android:theme="@style/LiliFullscreen"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode" />
+
+        <!-- the home-screen capture: transparent, no UI, a task of its own (so the
+             preview's task can go behind the launcher), not in recents; only
+             the preview starts it -->
+        <activity
+            android:name=".CaptureActivity"
+            android:exported="false"
+            android:theme="@style/LiliCapture"
+            android:taskAffinity="com.lili.wallpaper.capture"
+            android:excludeFromRecents="true"
+            android:noHistory="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode" />
+
+        <!-- the foreground service a MediaProjection needs (API 29+); only the
+             capture starts it, for a second or two -->
+        <service
+            android:name=".CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <service
             android:name=".LiliWallpaper"

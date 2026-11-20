@@ -42,6 +42,10 @@ import android.view.WindowManager;
  * cannot go back to a hardware producer.
  *
  * Touch is off: she does not react to it yet.
+ *
+ * Chroma mode (CaptureActivity taking the real home screen): the engine's
+ * LiliView turns magenta by itself; drawn flat (level 3), the engine draws
+ * Chroma.KEY itself.
  */
 public class LiliWallpaper extends WallpaperService {
 
@@ -53,7 +57,7 @@ public class LiliWallpaper extends WallpaperService {
         return new LiliEngine();
     }
 
-    private final class LiliEngine extends Engine implements SharedPreferences.OnSharedPreferenceChangeListener {
+    private final class LiliEngine extends Engine implements SharedPreferences.OnSharedPreferenceChangeListener, Chroma.Listener {
 
         private final int id = ++engines;
         private final Handler main = new Handler(Looper.getMainLooper());
@@ -93,6 +97,7 @@ public class LiliWallpaper extends WallpaperService {
             setTouchEventsEnabled(false);
             prefs = Prefs.of(LiliWallpaper.this);
             prefs.registerOnSharedPreferenceChangeListener(this);
+            Chroma.listen(this);
             log("created preview=" + isPreview() + " sdk " + Build.VERSION.SDK_INT);
         }
 
@@ -149,7 +154,14 @@ public class LiliWallpaper extends WallpaperService {
             teardown();
             main.removeCallbacks(backdropChanged);
             if (prefs != null) prefs.unregisterOnSharedPreferenceChangeListener(this);
+            Chroma.unlisten(this);
             super.onDestroy();
+        }
+
+        /** Chroma mode: the LiliView handles itself; drawn flat, the engine redraws. */
+        @Override
+        public void chroma(boolean on) {
+            if (flat) drawFlat();
         }
 
         /** API 27+: the platform derives Material You colours and the dark-text hint from these. */
@@ -164,10 +176,10 @@ public class LiliWallpaper extends WallpaperService {
             }
         }
 
-        /** A new backdrop applied (the settings screen's Apply). */
+        /** A new backdrop applied (the settings screen's Apply), or My wallpaper kept (it may be the default look). */
         @Override
         public void onSharedPreferenceChanged(SharedPreferences p, String key) {
-            if (key == null || !key.startsWith("bg_")) return;
+            if (key == null || !(key.startsWith("bg_") || Prefs.ORIG_AT.equals(key))) return;
             main.removeCallbacks(backdropChanged);
             main.post(backdropChanged);
         }
@@ -243,7 +255,8 @@ public class LiliWallpaper extends WallpaperService {
             Canvas c = null;
             try {
                 c = holder.lockCanvas();
-                if (c != null) Backdrop.draw(c, c.getWidth(), c.getHeight(), LiliWallpaper.this);
+                if (c != null && Chroma.on()) c.drawColor(Chroma.KEY);
+                else if (c != null) Backdrop.draw(c, c.getWidth(), c.getHeight(), LiliWallpaper.this);
             } catch (Throwable t) {
                 Log.w(TAG, "[WALL " + id + "] could not draw flat", t);
             } finally {

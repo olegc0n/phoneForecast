@@ -19,11 +19,11 @@ is blocked in this version (section 8).
 
 | | |
 |---|---|
-| They get | A **Home screen** switch: on sets the animated wallpaper through the system picker, off brings back the wallpaper that was there before. Where the phone allows it, "Home screen and lock screen" in the picker also animates her on the lock screen. The **Lock screen** switch shows that, but cannot be turned on itself (section 8). A background they choose: one of six dark presets or their own photo. Sliders for her size and how high she stands. |
+| They get | A **Home screen** switch (in the preview since section 9, a plan carried out on Apply): on sets the animated wallpaper through the system picker, off brings back the wallpaper that was there before. Where the phone allows it, "Home screen and lock screen" in the picker also animates her on the lock screen. The **Lock screen** switch shows that, but cannot be turned on itself (section 8). A background they choose: **My wallpaper** (the picture they had as wallpaper, kept for good; section 9), one of six dark presets or their own photo. Sliders for her size and how high she stands. A preview with home-screen icons over her, drawn or their own captured (section 9). |
 | When she performs | Each time the wallpaper comes back into view after 10 s or more out of sight (unlock, leaving an app), she starts a random animation. While in view she lives her idle life with another every 45 to 150 s. From 23:00 to 07:00 she sleeps. |
 | Battery | When the wallpaper is not visible (screen off, an app in front) the page runs **no timers at all** and the WebView is paused. Asleep she costs 2 frames a second. |
-| They do not get | Their existing wallpaper picture behind her (on most Android versions an app may not read it; they pick the photo again in Lili's settings). Lili on the always-on display. Lili on the lock screen on phones whose maker blocks third-party live wallpapers there (Huawei EMUI/HarmonyOS, Samsung One UI, most MIUI/HyperOS and ColorOS builds). Lili before the first unlock after a reboot (see Risks, direct boot). Touch: an engine can receive touches and taps, but Lili keeps touch off for now, so she cannot be petted yet. |
-| Preview | **Preview** in the app shows her full screen with the settings as changed, before they are applied; **Apply** there applies them (section 8). |
+| They do not get | Their existing wallpaper picture behind her where Android will not let an app read it and they do not pick it from their photos (section 9: up to Android 12 with READ_EXTERNAL_STORAGE, from 13 only with "All files access"; another app's live wallpaper has no picture). Lili on the always-on display. Lili on the lock screen on phones whose maker blocks third-party live wallpapers there (Huawei EMUI/HarmonyOS, Samsung One UI, most MIUI/HyperOS and ColorOS builds). Lili before the first unlock after a reboot (see Risks, direct boot). Touch: an engine can receive touches and taps, but Lili keeps touch off for now, so she cannot be petted yet. |
+| Preview | **Preview** in the app shows her full screen with the settings as changed, before they are applied, with home-screen icons over her; the **Home screen** and **Lock screen** switches are there, as a plan, and **Apply** applies the look and then carries out the plan (sections 8 and 9). |
 
 ---
 
@@ -193,12 +193,12 @@ launcher icon and the wallpaper xml's `settingsActivity`. `SetupActivity` is
 deleted.
 
 - Native views built in code, like `SetupActivity` was, on one opaque
-  scrolling screen: the **Where Lili lives** switches (Home screen, Lock
-  screen; section 8 - they replaced the first version's status line and **Set
-  as wallpaper** button, and also put the previous wallpapers back), preset
-  swatches, **Choose photo…**, **Darken photo** slider (photo only), **Size**
-  and **Height** sliders, the line "Changes not applied yet" (only while there
-  are some), **Preview**, and a note.
+  scrolling screen: the My wallpaper card (only while it cannot be kept;
+  section 9), **Where Lili lives** (since section 9 a read-only status line;
+  the switches of section 8 moved into the preview), **My wallpaper** and the
+  preset swatches, **Choose photo…**, **Darken photo** slider (pictures only),
+  **Size** and **Height** sliders, the line "Changes not applied yet" (only
+  while there are some), **Preview**, and a note.
 - **Opaque; changes are a draft until applied.** The first version used
   `Theme.Material.Wallpaper.NoTitleBar`: with Lili active, the real engine
   showed through the bottom of the screen and every change was seen there as it
@@ -208,8 +208,8 @@ deleted.
   the system bars and the panel are `PANEL`, opaque. Background, photo,
   darkening, size and height are a **draft** held by the screen; **Preview**
   shows it full screen, and **Apply** there writes it to prefs, which is when
-  the wallpaper changes. The switches are not part of the draft and act at
-  once. Section 8, "Settings: draft, Preview, Apply", has the details.
+  the wallpaper changes. Section 8, "Settings: draft, Preview, Apply", has the
+  details; section 9 moved the switches into the preview as a plan.
 - Set as wallpaper: `ACTION_CHANGE_LIVE_WALLPAPER` with
   `EXTRA_LIVE_WALLPAPER_COMPONENT`; on `ActivityNotFoundException`,
   `ACTION_LIVE_WALLPAPER_CHOOSER`; if that fails too, show a hint ("long-press
@@ -227,8 +227,9 @@ deleted.
   keys it hears into one redraw, one `Wall.apply` and one
   `notifyColorsChanged()`.
 - `PreviewActivity` shows the draft it is given, with **Apply** and **Cancel**
-  at the top. Without a draft (from adb, with `-e ep <id>` to play one named
-  scene) it is the plain preview of what is applied.
+  at the top, the plan's switches and the icons layer (section 9). Without a
+  draft (from adb, with `-e ep <id>` to play one named scene) it is the plain
+  preview of what is applied.
 
 ---
 
@@ -734,8 +735,9 @@ was blocked (see "Decision" below; its code is kept).
   `getWallpaperId(FLAG_LOCK) < 0` means the lock screen mirrors home.
   `getWallpaperInfo(FLAG_LOCK)` exists only from API 34.
 - Reading a wallpaper's picture (`getWallpaperFile`, `getDrawable`) needs
-  `READ_EXTERNAL_STORAGE` on API 27-32 (24-26 may not), and more than an app
-  can get on 33+. `clear(FLAG_LOCK)` makes the lock mirror home again.
+  `READ_EXTERNAL_STORAGE` on API 27-32 (24-26 may not), and "All files
+  access" (`MANAGE_EXTERNAL_STORAGE`) on 33+ (section 9). `clear(FLAG_LOCK)`
+  makes the lock mirror home again.
 
 ### Where Lili lives: two switches
 
@@ -1048,7 +1050,9 @@ lock mode off; when the call fails, the picture is taken to be still there.
 
 ### Permissions and manifest
 
-`SET_WALLPAPER` (normal), `RECEIVE_BOOT_COMPLETED` (normal; only the kept
+Section 9 added three (`MANAGE_EXTERNAL_STORAGE`, `FOREGROUND_SERVICE`,
+`FOREGROUND_SERVICE_MEDIA_PROJECTION`); its own "Permissions" lists all six.
+As of this section: `SET_WALLPAPER` (normal), `RECEIVE_BOOT_COMPLETED` (normal; only the kept
 lock-picture job needs it now), `READ_EXTERNAL_STORAGE` with
 `maxSdkVersion="32"` (asked at run time only where it helps). `LockJob` is a
 service with `android:permission="android.permission.BIND_JOB_SERVICE"`. Group
@@ -1116,3 +1120,306 @@ set as wallpaper" going on to the picker; Back with changes, and the three
 buttons of its dialog; the draft surviving a trip to the photo picker; and
 `run-as com.lili.wallpaper ls files` showing no `bg_draft.jpg` after Discard,
 Apply or a fresh open.
+
+---
+
+## 9. My wallpaper, the plan in the preview, the icons layer
+
+Added after the third round. The user wanted three things: the picture they
+already had as wallpaper as a background option that is never lost; the two
+switches moved out of the settings screen into the preview, so the workflow is
+edit, Preview, choose where she goes, Apply; and a preview that looks like the
+home screen, with icons over her, so they can see how big she is next to them.
+
+### My wallpaper (`Original.java`)
+
+Users mostly have a picture of their own as wallpaper and may long have
+deleted the file it came from. So on every open (and every resume) of the
+settings screen, until it has worked once, Lili asks for the current **home**
+wallpaper's picture on a worker thread (`Original.obtain`) and keeps it for
+good as `files/original.jpg`.
+
+| The home screen shows | Then |
+|---|---|
+| Lili's live wallpaper | the static home backup `Backup` saved before she took the screen (`Backup.homePicture`); without one, `NO_BACKUP` |
+| another app's live wallpaper | there is no picture: `LIVE` |
+| a picture, Android 12 or older | read it (`Backup.readHome`: `getWallpaperFile(FLAG_SYSTEM)`, else `getDrawable()` as PNG). API 27-32 need `READ_EXTERNAL_STORAGE`: `DENIED` asks for it once per screen (the same question as before Home on, which also counts) |
+| a picture, Android 13 or newer | read it only if "All files access" is granted (`Environment.isExternalStorageManager()`); otherwise `NEED_ALL_FILES` and nothing is read |
+
+Whatever was read goes through the backdrop's import (`Backdrop.importPhoto`:
+sampled, EXIF upright, centre-cropped to the portrait screen, a temp file then
+a rename) into `files/original.part`, and `keep()` renames that to
+`original.jpg` **only if there is no `original.jpg` yet**, under a lock. Then
+`Prefs.ORIG_AT` is written, once: it is the decode key of the picture
+(`Backdrop`'s third slot, next to `bg.jpg` and `bg_draft.jpg`) and what every
+view and engine listens to.
+
+**Never lost.** No code path deletes, replaces or writes over `original.jpg`:
+not Discard, Apply, a fresh open (which deletes only `bg_draft.jpg`), Choose
+photo (its own slot, `bg.jpg`), a restore (it is only read, by
+`Backup.setPicture`), or anything that sweeps `files/`. Group I checks it
+statically: the name is spelt once, `Original.FILE` is used only by the
+decoder, no variable holding the file is deleted, renamed, imported into or
+written, there is no `deleteFile`/`listFiles` anywhere, and the one rename into
+it sits behind `if (kept.isFile()) return`.
+
+**The card.** While it cannot be kept, a card at the top of the settings
+screen (on `DIALOG`, like the dialogs) says why and offers a way:
+
+| State | Text | Buttons |
+|---|---|---|
+| `NEED_ALL_FILES` | To keep a copy of your current wallpaper, allow Lili "All files access". Android 13 and newer allow reading the wallpaper only with this permission. Lili reads nothing else. | **Allow** (primary): `Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` with `package:com.lili.wallpaper`, falling back to `ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION`; `onResume` tries again. **Pick from photos instead** |
+| `LIVE` | Your current wallpaper is animated, so there is no picture of it to keep. If you have it as a photo, pick it... | **Pick from photos** |
+| `DENIED`, `NO_BACKUP`, `FAILED` | Lili couldn't get a copy of your current wallpaper. If you have it as a photo, pick it... | **Pick from photos** |
+
+A pick from photos imports into `original.jpg` the same way
+(`Original.fromPhoto`). Once it is kept, the card is gone for good. There is
+no "not now": the card stays until there is a picture, because that is the
+point of it.
+
+**The background option.** Once kept, **My wallpaper** is the first button in
+the background row: its thumbnail, centre-cropped, with "My wallpaper" on a
+`BUTTON` band (`BUTTON_TEXT`, as on every button), ringed when chosen like a
+swatch. It is a kind of its own, `original`, next to `preset` and `photo`
+(`Look.kind`, `Prefs.KIND_ORIGINAL`, `bg_kind`). **Darken** applies to it as
+to a photo (`Look.picture()`).
+
+**The default look.** Before the first Apply there is no `bg_kind` in prefs;
+then the applied look is My wallpaper once it is kept, otherwise the `night`
+preset (`Prefs.kind`). Every Apply writes `bg_kind`, even one that applies the
+default unchanged (`commit()`), so My wallpaper kept after a look was applied
+never overrides that look. Kept while the settings screen is open, the
+untouched draft follows it (as it follows an Apply from another settings
+screen), and a wallpaper engine showing the default repaints.
+
+**Restore.** Home off with no home backup now puts My wallpaper back
+(`Backup.ORIGINAL`, `setStream(FLAG_SYSTEM)`) instead of asking; the
+no-backup dialog only comes when there is neither. A saved live wallpaper
+still goes through its picker first. A lock screen that needs a picture of its
+own while the live Lili stays at home gets the home backup, else My wallpaper.
+
+**Why "All files access".** From Android 13, `WallpaperManager.getDrawable()`
+and `getWallpaperFile()` serve the real picture only to holders of
+`READ_WALLPAPER_INTERNAL` (a system permission) or `MANAGE_EXTERNAL_STORAGE`
+(**platform, unconfirmed here**; that is what the user decided on).
+`READ_EXTERNAL_STORAGE` no longer counts and is declared only up to API 32.
+`MANAGE_EXTERNAL_STORAGE` is not a runtime prompt: the user grants it on a
+system settings page. Google Play allows it only for apps whose core purpose
+needs broad file access (file managers, backup apps...), so a Play release
+would be rejected; Lili is distributed through GitHub, where nothing reviews
+it. On 13+ the picture is never read without the permission, so a platform
+that answers with the default picture instead of refusing never gets that kept
+by mistake. With it granted, `Backup.beforeHome` can also save the wallpapers
+before Home on.
+
+### The switches move into the preview: a plan
+
+The workflow is: edit the look in settings, **Preview**, choose **Home screen**
+/ **Lock screen** there, **Apply**.
+
+**Settings** no longer has switches. Under **Where Lili lives** a read-only
+line says what the system shows, read as the switches were (on every resume,
+after every action, on every `lock_*`/`bk_*` change):
+
+| System | Line |
+|---|---|
+| home is `LiliWallpaper`, lock mirrors it (or `getWallpaperInfo(FLAG_LOCK)` is ours) | Lili is on: home and lock screen (animated) |
+| home is `LiliWallpaper` | Lili is on: home screen |
+| her live wallpaper on the lock screen alone (API 34+) | Lili is on: lock screen (animated) |
+| her picture from an earlier build on the lock screen | Lili is on: lock screen (her picture) / ...home screen, and her picture on the lock screen, plus "updated 14:05" etc. |
+| nothing of hers | Not set: Lili isn't your wallpaper yet. Tap Preview, keep Home screen on and tap Apply. |
+| a save or restore running | Saving your current wallpaper... / Putting your previous wallpaper back... |
+
+**The preview's switches are a plan**, not actions, in a compact panel under
+Apply and Cancel (opaque `PANEL`, the 2 dp `OUTLINE` that reads over any
+backdrop, every control from the settings screen's factories). They start
+from the real state, except that **Home starts on** when Lili is not the home
+wallpaper yet: the user is previewing to set her. A line under each says what
+Apply will do ("Lili takes the home screen after Apply", "Your previous
+wallpaper comes back after Apply"...). The **Lock** switch is blocked exactly
+as in section 8: off and disabled with "Not available..."; on and disabled
+while her live wallpaper covers the lock screen (it shows off, "Leaves with the
+home screen", when Home is planned off); enabled only to turn off her picture
+from an earlier build or her lock-only live wallpaper. The settings screen
+hands the preview the lock state and its line (`EXTRA_LOCK_STATE`,
+`EXTRA_LOCK_NOTE`), so the preview reads nothing that writes. **Cancel** (and
+Back) throws the plan away.
+
+**Apply** returns the look and the plan (`EXTRA_HOME`, `EXTRA_LOCK_OFF`), and
+`SettingsActivity.previewed()` - one code path - first commits the look (as
+before; a draft photo that is gone stops everything), then carries out the
+plan's differences from the system now, the old ways: Lock off first (her old
+picture: lock mode off, the saved lock wallpaper back), then Home on (both
+screens saved, then the picker with its hint) or Home off (the home backup,
+else My wallpaper, else the no-backup dialog). A Home change waiting for the
+Lock one runs when that restore ends, or when its dialog is cancelled or its
+photo pick returns nothing (`continuePlan`). Dialogs come after Apply, on the
+settings screen, as before. "Applied" is toasted when no Home change follows
+(Home on has its own toasts). Preview is disabled while a plan is being
+carried out. The button reads **Apply** always; "Apply and set as wallpaper"
+is gone, because the Home switch says it.
+
+### The icons layer (`IconsView.java`)
+
+The preview's layers, bottom to top: the draft's backdrop; Lili (the WebView,
+the draft's size and height); the **icons layer**; the controls. **Show
+icons** in the panel turns the layer off and on (on by default).
+
+**Drawn icons** (always there, no permission): drawn on a `Canvas` in dp - a
+status bar strip (the time, three dots, a battery), a clock and date widget
+near the top, two rows of rounded-square app icons (54 dp at most, 4 columns,
+5 from 400 dp wide, the usual cell spacing) with light labels, one folder (a
+rounded square holding four small icons), a dock of four above the search pill,
+and the gesture handle. Its fills are muted mid-tones at 95% opacity, chosen
+so each stands out 3:1 from white, black and every preset with a light mark
+inside it at 3:1 too; the labels are light with a dark shadow (4.5:1 on the
+darkest backdrop and on their own halo over white). Every colour is a constant
+in `IconsView`, checked by group I. It is an approximation: it shows how big
+she is next to icons and whether the dock covers her, not the user's launcher.
+
+**Real icons**: **Use my real home screen** in the panel captures the user's
+own home screen with Lili cut out, and the layer shows that instead while the
+screen is the size it was taken at; **Drawn icons / Real icons** switches
+between them once both exist (a new capture is shown at once). The button is
+enabled only while Lili is the home wallpaper (her magenta is what is cut
+out); otherwise "Set Lili as your wallpaper first to capture your real home
+screen". A tap on the picture hides the panel; another shows it.
+
+### The capture (`CaptureActivity`, `CaptureService`, `Chroma`, `Keyer`, `HomeShot`)
+
+1. The preview starts `CaptureActivity` - transparent, no views, a task of its
+   own (`taskAffinity="com.lili.wallpaper.capture"`, `NEW_TASK |
+   MULTIPLE_TASK`, `excludeFromRecents`, `LiliCapture`: translucent, no dim, no
+   animation, transparent bars with no contrast scrim) - and then moves its
+   own task (settings and preview) to the back, so the launcher, with Lili as
+   its wallpaper, is what shows behind the transparent window.
+2. `MediaProjectionManager.createScreenCaptureIntent()`: the system's consent
+   dialog, every time (an app cannot keep or skip it). On Android 14+ the user
+   may choose "A single app" or "Entire screen", so a toast says "choose
+   Entire screen" first (cancelled when the dialog returns, so it is not in
+   the picture).
+3. **API 29+**: `CaptureService`, a foreground service of type
+   `mediaProjection` with its own channel and the notification "Lili is
+   capturing your home screen", is started after the consent, and
+   `getMediaProjection()` is called only when it reports that it is in the
+   foreground. This is earlier than the brief's API 34: with targetSdk 29 or
+   more, Android 10+ refuses `getMediaProjection()` without such a service
+   (`SecurityException: Media projections require a foreground service of type
+   ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION`); API 34 adds the
+   `FOREGROUND_SERVICE_MEDIA_PROJECTION` permission and that the service may
+   start only after the consent. Below API 29 there is no service. The
+   projection's `Callback` is registered before the virtual display (Android
+   14 requires it); one virtual display per projection.
+4. **Chroma mode on** (`Chroma.set(true)`): a process-wide flag plus a
+   notification to every live `LiliView` that follows prefs (the engines'
+   views) and every engine drawing flat - activities and engines share one
+   process. They draw solid `Chroma.KEY` (`#FF00FF`) instead of the backdrop
+   and hide the WebView. The preview of a draft and the lock picture never
+   key. 700 ms for the home screen to repaint and the consent dialog to go.
+5. A `VirtualDisplay` (`VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR`) on an `ImageReader`
+   at the real screen size; the latest frame 400 ms later (retried every
+   100 ms, up to 15 times). Then `release()`: the display, the reader, the
+   projection, the service - and chroma mode off **in a `finally`**. Every
+   failure, the projection being stopped, Back, `onDestroy` and a **5 s
+   safety timeout** armed at the consent all go through `release()`. The flag
+   is not persisted, so a process that dies with it on comes back without it.
+6. `Keyer` (plain Java, run on a desktop JVM): a pixel is background if it is
+   magenta at any brightness - `max(r, b) >= 30`, `g <= 0.15 max(r, b)`,
+   `|r - b| <= 0.15 max(r, b)` - so a launcher's dark scrims and dimming key
+   out too. That is tighter than the brief's example (0.25 / 0.2): with those,
+   a purple icon such as Material Purple `#9C27B0` is cut out. Background
+   becomes transparent. An edge pixel (next to background) is solved as a
+   blend of the key around it and the solid foreground beside it (least
+   squares on the line between them; a 50/50 white rim comes out white at
+   alpha 128), or, with no solid neighbour (thin text), by how magenta it
+   looks; it gets that alpha and its colour with the key taken out, so there
+   is no magenta fringe. Less than 10% background means the wallpaper was not
+   on screen (a single app was chosen): a failure. About 120 ms for 1080x2400
+   on a desktop.
+7. Saved as `files/homescreen.png` (ARGB, a temp file then a rename) with the
+   screen size and time (`shot_w`, `shot_h`, `shot_at`; `HomeShot`), the
+   preview's task brought back (`ActivityManager.getAppTasks()`,
+   `AppTask.moveToFront()`: an app's own tasks need no permission), the
+   capture finished, and the preview's `onResume` loads the picture.
+
+Any failure (consent denied, a single app chosen, nothing keyed out, the
+timeout, the projection stopped) ends chroma mode, toasts why, and goes back;
+the drawn icons stay.
+
+### Permissions (six)
+
+| Permission | Kind | When | For |
+|---|---|---|---|
+| `SET_WALLPAPER` | normal, at install | - | putting a saved wallpaper or My wallpaper back; the old lock picture |
+| `RECEIVE_BOOT_COMPLETED` | normal | - | the old lock picture's refresh job survives a reboot |
+| `READ_EXTERNAL_STORAGE` (max SDK 32) | runtime, API 23-32 | once, when My wallpaper cannot be read, and before Home on if a backup cannot be read | reading the current wallpaper |
+| `MANAGE_EXTERNAL_STORAGE` | system settings page | when the user taps **Allow** on the card (API 33+) | reading the current wallpaper on Android 13+ |
+| `FOREGROUND_SERVICE` | normal | - | the capture's service (API 28+) |
+| `FOREGROUND_SERVICE_MEDIA_PROJECTION` | normal | - | ...of type `mediaProjection` (API 34+) |
+
+The capture itself has no permission: the system's consent dialog allows one
+capture, each time. `POST_NOTIFICATIONS` is not asked for: on Android 13+
+without it the service's notice shows in the task manager rather than the
+shade, and the capture works the same.
+
+### Files
+
+New: `Original.java`, `Chroma.java`, `Keyer.java`, `HomeShot.java`,
+`IconsView.java`, `CaptureActivity.java`, `CaptureService.java`. Changed:
+`Look.java` (`kind`, `original`, `picture()`), `Prefs.java` (`KIND_ORIGINAL`,
+`ORIG_AT`, `SHOT_*`, `kind()`), `Backdrop.java` (the third slot),
+`Backup.java` (`ORIGINAL`, `readHome`, `homePicture`), `LiliView.java` and
+`LiliWallpaper.java` (chroma, `orig_at`), `LockPicture.java` (`copy()` shared),
+`SettingsActivity.java` (status line, card, tile, the plan, static factories),
+`PreviewActivity.java` (the panel, the plan, the icons layer, the capture), the
+manifest, `themes.xml` (`LiliCapture`), strings (en, ru), `check-wallpaper.js`
+(E and I). The page is unchanged.
+
+### Checks added
+
+Group E: the six permissions exactly; `CaptureService` the one typed
+foreground service, `mediaProjection`, not exported; `CaptureActivity` not
+exported, its own task affinity, not in recents, a translucent theme that does
+not dim; the projection asked for only once the service is in the foreground
+(API 29+), its callback registered before the virtual display. Group I: the
+new colour pairs (the card, the tile's band, the preview panel's outline and
+notes) and the mock's (every fill 3:1 over white, black and every preset, the
+marks 3:1 on them, the labels 4.5:1); no colour in `IconsView` outside its
+constants; every preview button painted for a backdrop, its three switches and
+notes from the factories; the plan (Home starts on, nothing acts before
+Apply, the look committed first); only `Look.toPrefs` writes look keys (as
+before); `original.jpg` never deleted (above); `orig_at` written only by
+`Original`; Home off falls back to My wallpaper; chroma on only in
+`CaptureActivity`, after the safety timeout is armed, off only in a `finally`.
+The new static checks were each made to fail once on purpose (a delete of the
+file, chroma off outside the `finally`, a plain-painted button, Home starting
+off, an extra permission).
+
+### Untested (no device in this round)
+
+- **All files access**: that Android 13/14 read the real wallpaper with it
+  (and not without), that the Allow intent opens Lili's own page on each
+  vendor, and the retry on return. The Huawei test phone (HarmonyOS, API
+  29-31) takes the `READ_EXTERNAL_STORAGE` path instead.
+- On Huawei: that `getWallpaperFile`/`getDrawable` give the real picture (EMUI
+  themes and Magazine unlock may keep it elsewhere); that My wallpaper looks
+  right (cropped, upright) as a background and as the restored wallpaper.
+- **The capture on Huawei**: the consent dialog's wording and whether it asks
+  for single app or entire screen; that the launcher shows behind the
+  transparent window after `moveTaskToBack` (if another app's task was below
+  ours, that app would show instead - for example when the settings were
+  opened from the wallpaper picker); that the wallpaper repaints magenta
+  within 700 ms; that the first frame comes within the retries; how EMUI's
+  launcher dims or blurs the wallpaper (scrims must stay dark for the key);
+  translucent dock and folder backgrounds (they come out tinted, not
+  transparent); a screen-recording indicator in the picture;
+  `AppTask.moveToFront()` bringing the preview back; and that chroma mode
+  always ends (logcat `[CAPTURE] chroma off`).
+- Android 14+: "A single app" ending in "couldn't find her wallpaper" (the
+  chosen app is then in front, and bringing the preview back from behind it
+  may be refused).
+- The drawn icons' look on the phone; the preview panel's height on a small
+  screen (it scrolls, and a tap hides it); the status line's wording for each
+  state.
+- Check with `adb logcat -s Lili`: `[ORIG]`, `[CAPTURE]`, plus the earlier
+  `[LIFE]`, `[BACKUP]`, `[BG]`.

@@ -18,10 +18,11 @@
  *   G  Timers     the per-page timer gate on its own: freeze, thaw, order
  *   H  Still      #still=1, the lock-screen picture: a calm pose (asleep at
  *                 night), no scene, everything frozen, the ready signal
- *   I  Settings   the settings screen's and the preview buttons' colours (WCAG
- *                 contrast of every pair, the preview's over white, black and every
- *                 preset; no colour or control from the theme), the opaque theme,
- *                 its strings, and the draft: the look written only by commit()
+ *   I  Settings   the settings screen's and the preview's colours (WCAG contrast of
+ *                 every pair, the preview's controls and the drawn icons over white,
+ *                 black and every preset; no colour or control from the theme), the
+ *                 opaque theme, its strings, the draft (the look written only by
+ *                 commit()), My wallpaper never deleted, chroma mode always ended
  *
  * After a merge from main, a failure in D, E or F means main changed something
  * the wallpaper leans on: fix it in src/wallpaper/, not in the shared file.          */
@@ -810,10 +811,16 @@ head('E. Built - wallpaper.html and the Android manifest');
 	if (!man) { note('android-wallpaper/AndroidManifest.xml not found'); return; }
 	var bare = man.replace(/<!--[\s\S]*?-->/g, '');
 	/* Exactly these, and nothing else: setting the lock-screen picture and
-	 * restoring wallpapers, the 3-hourly refresh job surviving a reboot, and
-	 * reading the current wallpaper for the backup - only up to API 32, where
-	 * Android lets that permission do it. */
-	var WANT_PERMS = ['android.permission.READ_EXTERNAL_STORAGE max 32',
+	 * restoring wallpapers, the 3-hourly refresh job surviving a reboot,
+	 * reading the current wallpaper for the backup and My wallpaper - with
+	 * READ_EXTERNAL_STORAGE up to API 32, where Android lets that permission do
+	 * it, and "All files access" (MANAGE_EXTERNAL_STORAGE) from API 33 - and the
+	 * foreground service the home-screen capture needs (API 28+, and of type
+	 * mediaProjection on API 34+). */
+	var WANT_PERMS = ['android.permission.FOREGROUND_SERVICE',
+	                  'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
+	                  'android.permission.MANAGE_EXTERNAL_STORAGE',
+	                  'android.permission.READ_EXTERNAL_STORAGE max 32',
 	                  'android.permission.RECEIVE_BOOT_COMPLETED',
 	                  'android.permission.SET_WALLPAPER'];
 	var perms = [], pre = /<uses-permission(?:-sdk-\d+)?\b([^>]*)>/g, pm;
@@ -824,8 +831,45 @@ head('E. Built - wallpaper.html and the Android manifest');
 	}
 	perms.sort();
 	check(perms.join(', ') === WANT_PERMS.join(', '),
-		'the manifest requests exactly SET_WALLPAPER, RECEIVE_BOOT_COMPLETED and READ_EXTERNAL_STORAGE (max SDK 32)',
+		'the manifest requests exactly SET_WALLPAPER, RECEIVE_BOOT_COMPLETED, READ_EXTERNAL_STORAGE (max SDK 32), ' +
+		'MANAGE_EXTERNAL_STORAGE, FOREGROUND_SERVICE and FOREGROUND_SERVICE_MEDIA_PROJECTION',
 		perms.join(', ') || 'none');
+
+	/* the home-screen capture: one foreground service, of type mediaProjection, not
+	 * exported; a transparent activity of its own task, not exported, not in recents */
+	function element(tag, name) {
+		var re = new RegExp('<' + tag + '\\b[^>]*android:name="\\.' + name + '"[^>]*>');
+		return (re.exec(bare) || [''])[0];
+	}
+	function attr(el, a) { return (new RegExp('android:' + a + '="([^"]*)"').exec(el) || [])[1]; }
+	var capSvc = element('service', 'CaptureService');
+	var fgsTypes = bare.match(/android:foregroundServiceType="[^"]*"/g) || [];
+	check(!!capSvc && attr(capSvc, 'exported') === 'false' && attr(capSvc, 'foregroundServiceType') === 'mediaProjection' &&
+		fgsTypes.length === 1 && !attr(capSvc, 'permission'),
+		'CaptureService is the one foreground service: type mediaProjection, not exported',
+		capSvc ? 'exported=' + attr(capSvc, 'exported') + ' type=' + attr(capSvc, 'foregroundServiceType') +
+			', ' + fgsTypes.length + ' typed services' : 'not declared');
+	var capAct = element('activity', 'CaptureActivity');
+	var themesXml = exists('android-wallpaper/res/values/themes.xml') ? read('android-wallpaper/res/values/themes.xml') : '';
+	var capStyle = (/<style name="LiliCapture"[^>]*>[\s\S]*?<\/style>/.exec(themesXml) || [''])[0];
+	check(!!capAct && attr(capAct, 'exported') === 'false' && attr(capAct, 'excludeFromRecents') === 'true' &&
+		!!attr(capAct, 'taskAffinity') && attr(capAct, 'taskAffinity') !== (/package="([^"]+)"/.exec(bare) || [])[1] &&
+		attr(capAct, 'theme') === '@style/LiliCapture' &&
+		/windowIsTranslucent">\s*true/.test(capStyle) && /windowBackground">@android:color\/transparent/.test(capStyle) &&
+		/backgroundDimEnabled">\s*false/.test(capStyle),
+		'CaptureActivity: not exported, its own taskAffinity, not in recents, a transparent theme that does not dim',
+		capAct ? 'affinity ' + attr(capAct, 'taskAffinity') : 'not declared');
+	var capCode = exists('android-wallpaper/java/com/lili/wallpaper/CaptureActivity.java') ?
+		codeOnly(read('android-wallpaper/java/com/lili/wallpaper/CaptureActivity.java')) : '';
+	var svcCode = exists('android-wallpaper/java/com/lili/wallpaper/CaptureService.java') ?
+		codeOnly(read('android-wallpaper/java/com/lili/wallpaper/CaptureService.java')) : '';
+	var consent = capCode.slice(capCode.indexOf('protected void onActivityResult('));
+	check(/SDK_INT >= 29\) startForeground\(NOTE_ID, n, ServiceInfo\.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION\)/.test(svcCode) &&
+		/SDK_INT >= 29\) \{\s*serviceAsked = true;\s*CaptureService\.start\(/.test(consent) &&
+		consent.indexOf('CaptureService.start(') < consent.indexOf('project(result, data)') &&
+		/projection\.registerCallback\(/.test(capCode) &&
+		capCode.indexOf('projection.registerCallback(') < capCode.indexOf('createVirtualDisplay('),
+		'the projection is asked for only once CaptureService is in the foreground (API 29+), and its callback is registered before the virtual display');
 	check(/<service[^>]*android:name="\.LockJob"[^>]*android:permission="android\.permission\.BIND_JOB_SERVICE"/.test(bare),
 		'the lock-picture refresh job is a service guarded by BIND_JOB_SERVICE');
 	var jobSrc = exists('android-wallpaper/java/com/lili/wallpaper/LockJob.java') ?
@@ -1348,7 +1392,7 @@ head('H. Still - #still=1, the lock-screen picture');
  *  I. Settings - colours, strings, the draft                          *
  * ================================================================== */
 
-head('I. Settings - every colour on the settings screen and the preview\'s buttons is legible, every string used, the look written only on Apply');
+head('I. Settings - every colour on the settings screen and the preview is legible, every string used, the look written only on Apply, My wallpaper kept, chroma mode ended');
 (function () {
 	var DIR = 'android-wallpaper/java/com/lili/wallpaper/';
 	var file = DIR + 'SettingsActivity.java';
@@ -1429,7 +1473,10 @@ head('I. Settings - every colour on the settings screen and the preview\'s butto
 		['a disabled button\'s text on its face', 'BUTTON_OFF_TEXT', one('BUTTON_OFF', C.BUTTON_OFF), 4.5],
 		['dialog text', 'TEXT', one('DIALOG', C.DIALOG), 4.5],
 		['a button\'s outline around it (panel and dialog)', 'EDGE', panels.concat(one('DIALOG', C.DIALOG)), 3],
-		['a preview button\'s outline over her backdrop (white, black, every preset)', 'OUTLINE', BACKDROPS, 3],
+		['a preview button\'s and the preview panel\'s outline over her backdrop (white, black, every preset)', 'OUTLINE', BACKDROPS, 3],
+		['the My wallpaper card\'s text on its face', 'TEXT', one('DIALOG', C.DIALOG), 4.5],
+		['"My wallpaper" on the tile\'s label band', 'BUTTON_TEXT', one('BUTTON', C.BUTTON), 4.5],
+		['the preview panel\'s notes (on its opaque PANEL face)', 'TEXT_DIM', one('PANEL', C.PANEL), 4.5],
 		['a switch track, off, on the panel', 'EDGE', panels, 3],
 		['a switch track, on, on the panel', 'ACCENT', panels, 3],
 		['the knob on the track, off', 'KNOB', one('EDGE', C.EDGE), 3],
@@ -1479,9 +1526,9 @@ head('I. Settings - every colour on the settings screen and the preview\'s butto
 	var FACTORIES = [
 		['Button', 'static Button button(Context', ['static void paint(Button b, boolean primary, boolean'],
 			['paint(', 'setTextColor(', 'setBackground(', 'setBackgroundTintList(null)']],
-		['Switch', 'private Switch toggle(', [], ['setTextColor(', 'setThumbDrawable(', 'setTrackDrawable(', 'setBackground(']],
+		['Switch', 'static Switch toggle(Context', [], ['setTextColor(', 'setThumbDrawable(', 'setTrackDrawable(', 'setBackground(']],
 		['SeekBar', 'private SeekBar slider(', [], ['setProgressTintList(', 'setProgressBackgroundTintList(', 'setThumbTintList(']],
-		['TextView', 'private TextView text(', [], ['setTextColor(']]
+		['TextView', 'static TextView text(Context', [], ['setTextColor(']]
 	];
 	FACTORIES.forEach(function (f) {
 		var n = (code.match(new RegExp('new ' + f[0] + '\\(', 'g')) || []).length;
@@ -1496,16 +1543,30 @@ head('I. Settings - every colour on the settings screen and the preview\'s butto
 		/\.setBackgroundDrawable\(new ColorDrawable\(PANEL\)\)/.test(body('protected void onCreate(')),
 		'the window, the panel and the dialogs are painted with PANEL and DIALOG');
 
-	/* The preview's buttons: the settings screen's factory, painted for a backdrop;
-	 * nothing of its own. */
-	var pControls = preview.match(/new (Button|TextView|Switch|SeekBar|CheckBox|ToggleButton)\(/g) || [];
+	/* The preview's controls: the settings screen's factories, its buttons painted
+	 * for a backdrop, its panel opaque with the backdrop outline; nothing of its own. */
+	var pControls = preview.match(/new (Button|TextView|Switch|SeekBar|CheckBox|ToggleButton|RadioButton)\(/g) || [];
 	var pHex = preview.match(/0x[0-9A-Fa-f]{6,8}\b/g) || [];
 	var pColor = preview.match(COLOR_SRC) || [];
-	var pPaint = preview.match(/SettingsActivity\.paint\(\s*\w+\s*,\s*(true|false)\s*,\s*true\s*\)/g) || [];
+	var pButtons = (preview.match(/SettingsActivity\.button\(/g) || []).length;
+	var pPaint = preview.match(/SettingsActivity\.paint\(\s*\w+\s*,\s*[^,()]+\s*,\s*true\s*\)/g) || [];
+	var pPlain = preview.match(/SettingsActivity\.paint\(\s*\w+\s*,\s*[^,()]+\s*\)|SettingsActivity\.paint\([^)]*,\s*false\s*\)/g) || [];
+	var buttonVars = [], bre = /(\w+)\s*=\s*SettingsActivity\.button\(/g, bv;
+	while ((bv = bre.exec(preview))) buttonVars.push(bv[1]);
+	var unpainted = buttonVars.filter(function (v) {
+		return !new RegExp('SettingsActivity\\.paint\\(\\s*' + v + '\\s*,[^,()]+,\\s*true\\s*\\)').test(preview);
+	});
 	check(preview.length > 0 && !pControls.length && !pHex.length && !pColor.length && !/\.setAlpha\(/.test(preview) &&
-		(preview.match(/SettingsActivity\.button\(/g) || []).length === 2 && pPaint.length === 2,
-		'PreviewActivity\'s two buttons come from SettingsActivity.button(), painted over a backdrop; no control or colour of its own',
-		(pControls.concat(pHex, pColor).join(' ') || '') + ' ' + pPaint.length + ' painted for a backdrop');
+		pButtons >= 2 && buttonVars.length === pButtons && !unpainted.length && !pPlain.length,
+		'PreviewActivity\'s ' + pButtons + ' buttons come from SettingsActivity.button(), every one painted over a backdrop; no control or colour of its own',
+		(pControls.concat(pHex, pColor, pPlain).join(' ') || '') + (unpainted.length ? ' not painted for a backdrop: ' + unpainted.join(' ') : ''));
+	var pSwitches = (preview.match(/SettingsActivity\.toggle\(/g) || []).length;
+	check(pSwitches === 3 && /SettingsActivity\.text\(/.test(preview) &&
+		/\.setBackground\(SettingsActivity\.panelOverBackdrop\(this\)\)/.test(preview) &&
+		/rounded\(PANEL,/.test(body('static Drawable panelOverBackdrop(')) &&
+		/setStroke\(px\(c, 2\), OUTLINE\)/.test(body('static Drawable panelOverBackdrop(')),
+		'the preview\'s panel: its three switches (Home, Lock, Show icons) and its notes from the factories, on opaque PANEL with the 2 dp OUTLINE',
+		pSwitches + ' switches');
 
 	/* The settings screen is not a wallpaper window any more. */
 	var themes = exists('android-wallpaper/res/values/themes.xml') ? read('android-wallpaper/res/values/themes.xml') : '';
@@ -1574,12 +1635,12 @@ head('I. Settings - every colour on the settings screen and the preview\'s butto
 	var lv = java('LiliView.java');
 	check(/follows = still == null && look == null;/.test(lv) &&
 		(lv.match(/\bregisterOnSharedPreferenceChangeListener\(/g) || []).length === 1 &&
-		/if \(follows\) prefs\.registerOnSharedPreferenceChangeListener\(this\)/.test(lv) &&
+		/if \(follows\) \{?\s*prefs\.registerOnSharedPreferenceChangeListener\(this\)/.test(lv) &&
 		/look != null \? look\.pageConfig\(\)/.test(lv) && /callbacks != null \? callbacks\.config\(\)/.test(java('LiliWeb.java')),
 		'a LiliView given a Look registers no prefs listener, and its page boots with the look\'s size and height');
 
 	/* the preview never writes; Apply hands the look back, Cancel and Back change nothing */
-	check(!/\.edit\(\)|toPrefs\(|Prefs\.of\(|adoptDraft|dropDraft/.test(preview) &&
+	check(!/\.edit\(\)|toPrefs\(|Prefs\.of\(|adoptDraft|dropDraft|HomeShot\.save|Original\.(obtain|fromPhoto)/.test(preview) &&
 		/setResult\(RESULT_OK, out\)/.test(bodyIn(preview, 'private void apply()')) &&
 		/look\.into\(out\)/.test(bodyIn(preview, 'private void apply()')) &&
 		/setResult\(RESULT_CANCELED\)/.test(bodyIn(preview, 'private void cancel()')) &&
@@ -1617,10 +1678,12 @@ head('I. Settings - every colour on the settings screen and the preview\'s butto
 	check(!notRu.length && !notEn.length, 'values-ru has the same strings (the app name stays "Lili")',
 		(notRu.length ? 'not in ru: ' + notRu.join(' ') : '') + (notEn.length ? ' only in ru: ' + notEn.join(' ') : ''));
 	var GONE = ['where_both', 'where_tip', 'restore_home', 'restore_lock', 'restore_photo', 'forget', 'previous_heading',
-	            'lock_failed', 'settings_active'];
+	            'lock_failed', 'settings_active', 'apply_and_set', 'screen_previous'];
 	var back = GONE.filter(function (k) { return en.indexOf(k) >= 0 || new RegExp('R\\.string\\.' + k + '\\b').test(javaAll); });
-	check(!back.length, 'the old mode buttons, the restore section and the see-through status line are gone (strings and code)',
-		back.join(' '));
+	check(!back.length, 'the old mode buttons, the restore section, the see-through status line, "Apply and set as wallpaper" ' +
+		'and the switches\' "previous wallpaper" line are gone (strings and code)', back.join(' '));
+	check(!/EXTRA_SET_HOME/.test(javaAll) && (code.match(/\btoggle\(/g) || []).length === 1,
+		'the settings screen has no switch of its own any more (they are the preview\'s plan); no "set as wallpaper" extra');
 
 	/* The lock-screen picture is blocked: nothing may turn lock mode on. Prefs.migrate()
 	 * only carries an existing one over from an earlier build, and LockPicture and
@@ -1629,6 +1692,129 @@ head('I. Settings - every colour on the settings screen and the preview\'s butto
 	check(!/LOCK_ON\s*,\s*true\b/.test(javaCode) && !/LockPicture\.request\(/.test(code) &&
 		exists(DIR + 'LockPicture.java') && exists(DIR + 'LockJob.java'),
 		'nothing turns lock mode on (no LOCK_ON true, no picture asked for from the settings screen); LockPicture and LockJob kept');
+
+	/* ---- the plan: the preview's switches decide nothing until Apply ---- */
+	var previewedBody = body('private void previewed(');
+	check(/private boolean planHome = true;/.test(preview) &&
+		/out\.putExtra\(EXTRA_HOME, planHome\)/.test(bodyIn(preview, 'private void apply()')) &&
+		/out\.putExtra\(EXTRA_LOCK_OFF, planLockOff\)/.test(bodyIn(preview, 'private void apply()')) &&
+		/lockSwitch\.setEnabled\(offable\)/.test(preview) &&
+		/boolean offable = lockState != SettingsActivity\.L_PREVIOUS && !withHome;/.test(preview) &&
+		!/homeOn\(|homeOff\(|lockOff\(|Backup\.|LockPicture\.|WallpaperManager/.test(preview) &&
+		/if \(!commit\(look\)\) return;/.test(previewedBody) &&
+		previewedBody.indexOf('commit(look)') < previewedBody.indexOf('continuePlan()') &&
+		previewedBody.indexOf('commit(look)') < previewedBody.indexOf('lockOff()'),
+		'the preview\'s switches are a plan (Home starts on, Lock only turns an old picture off; nothing acts before Apply); the settings screen carries it out after committing the look');
+
+	/* ---- My wallpaper: files/original.jpg is never deleted, replaced or written over ---- */
+	var origSrc = exists(DIR + 'Original.java') ? read(DIR + 'Original.java') : '';
+	var origCode = java('Original.java');
+	var literalAt = files.filter(function (f) { return /"original\.jpg"/.test(read(DIR + f)); });
+	var fileRefs = files.filter(function (f) { return f !== 'Original.java' && /\bOriginal\.FILE\b/.test(java(f)); });
+	var harm = [];
+	files.forEach(function (f) {
+		var c = java(f), names = [], bm;
+		/* every variable that holds the kept file */
+		var bindRe = f === 'Original.java' ? /(\w+)\s*=\s*(?:Original\.)?file\(/g : /(\w+)\s*=\s*Original\.file\(/g;
+		while ((bm = bindRe.exec(c))) names.push(bm[1]);
+		names.forEach(function (n) {
+			var re = new RegExp('\\b' + n + '\\.(delete|deleteOnExit|renameTo|setWritable)\\(|' +
+				'\\b(importPhoto|replace|rename|write|copyFile|copyDrawable|save)\\([^;]*\\b' + n + '\\b|' +
+				'FileOutputStream\\(\\s*' + n + '\\b', 'g');
+			(c.match(re) || []).forEach(function (m) { harm.push(f + ': ' + m); });
+		});
+		/* the file itself, unnamed; and anything that sweeps the files directory */
+		(c.match(/Original\.file\([^)]*\)\s*\.(delete|renameTo|deleteOnExit)\(|\bdeleteFile\(|\blistFiles\(|\b(importPhoto|replace|rename|write)\([^;]*Original\.file\(/g) || [])
+			.forEach(function (m) { harm.push(f + ': ' + m); });
+	});
+	var keepBody = bodyIn(origCode, 'private static void keep(');
+	var guarded = keepBody.indexOf('if (kept.isFile())'), into = keepBody.indexOf('.renameTo(kept)');
+	check(literalAt.length === 1 && literalAt[0] === 'Original.java' && /static final String FILE = "original\.jpg";/.test(origSrc) &&
+		fileRefs.length === 1 && fileRefs[0] === 'Backdrop.java' && /new Slot\(Original\.FILE\)/.test(java('Backdrop.java')) &&
+		!harm.length && guarded >= 0 && into > guarded && (allJava.match(/\.renameTo\(\s*kept\s*\)/g) || []).length === 1,
+		'files/original.jpg is never deleted, replaced or written over: named once, only decoded and read, renamed into only when there is none',
+		harm.join(', ') || '');
+	var origWrites = calls(/\.put\w+\(\s*Prefs\.ORIG_AT\b/g);
+	check(origWrites.length === 1 && origWrites[0] === 'Original.java' &&
+		!/Original\.(obtain|fromPhoto)\(/.test(java('Backdrop.java') + java('LiliView.java') + java('LiliWallpaper.java')),
+		'orig_at (My wallpaper kept) is written once, by Original; only the settings screen asks for the picture',
+		origWrites.join(' '));
+	var bk = java('Backup.java');
+	check(/if \(Original\.have\(app\)\) return ORIGINAL;/.test(bodyIn(bk, 'static int homePlan(')) &&
+		/case ORIGINAL:\s*setPicture\(app, Original\.file\(app\), lock\);/.test(bk) &&
+		/plan == Backup\.PICTURE \|\| plan == Backup\.ORIGINAL/.test(body('private void homeOff()')),
+		'Home off with no home backup puts My wallpaper back (Backup.ORIGINAL) before it asks');
+	var lookCodeNow = java('Look.java');
+	check(/Prefs\.kind\(p\)/.test(bodyIn(lookCodeNow, 'static Look fromPrefs(')) &&
+		/if \(k == null\) return hasOriginal\(p\) \? KIND_ORIGINAL : KIND_PRESET;/.test(java('Prefs.java')) &&
+		/\|\| !prefs\.contains\(Prefs\.BG_KIND\)/.test(body('private boolean commit(Look')),
+		'My wallpaper is the default look only until the first Apply (no bg_kind yet); every Apply records its look');
+
+	/* ---- the preview's drawn icons: muted mid-tones that read over any backdrop ---- */
+	var iv = java('IconsView.java');
+	var M = {}, mre = /static final int (MOCK_[A-Z_]+) = 0x([0-9A-Fa-f]{8});/g, mm, mDeclared = 0;
+	while ((mm = mre.exec(iv))) { M[mm[1]] = parseInt(mm[2], 16) >>> 0; mDeclared++; }
+	var FILL_NAMES = Object.keys(M).filter(function (k) { return !/^MOCK_(TEXT|SHADOW|GLYPH)$/.test(k); });
+	var mockOk = iv.length > 0 && ['MOCK_TEXT', 'MOCK_SHADOW', 'MOCK_GLYPH'].every(function (k) { return k in M; }) &&
+		FILL_NAMES.length >= 5;
+	check(mockOk, 'IconsView declares the mock\'s colours as constants (' + mDeclared + ', ' + FILL_NAMES.length + ' fills)');
+	if (mockOk) {
+		var weakFill = [], weakGlyph = [];
+		FILL_NAMES.forEach(function (k) {
+			var wf = null, wg = null;
+			BACKDROPS.forEach(function (b) {
+				var f = over(M[k], b.c), r = ratio(f, b.c), g = ratio(over(M.MOCK_GLYPH, f), f);
+				if (!wf || r < wf.r) wf = { r: r, on: b.name };
+				if (!wg || g < wg.r) wg = { r: g, on: b.name };
+			});
+			if (wf.r < 3) weakFill.push(k + ' ' + wf.r.toFixed(2) + ' on ' + wf.on);
+			if (wg.r < 3) weakGlyph.push(k + ' ' + wg.r.toFixed(2) + ' on ' + wg.on);
+		});
+		check(!weakFill.length, 'contrast >= 3: every mock icon, the folder and the search pill against white, black and every preset',
+			weakFill.join(', '));
+		check(!weakGlyph.length, 'contrast >= 3: the mark inside each icon, on it, over any backdrop', weakGlyph.join(', '));
+		var darkBds = BACKDROPS.filter(function (b) { return b.name !== 'white'; });
+		var tw = worst(M.MOCK_TEXT, darkBds), th = ratio(M.MOCK_TEXT, over(M.MOCK_SHADOW, 0xFFFFFFFF));
+		check(tw.r >= 4.5 && th >= 4.5, 'contrast ' + tw.r.toFixed(2) + ' >= 4.5: the mock\'s light labels on the darkest backdrop (' + tw.on +
+			'), and ' + th.toFixed(2) + ' on their own dark halo over white', 'MOCK_TEXT ' + hex(M.MOCK_TEXT) + ', MOCK_SHADOW ' + hex(M.MOCK_SHADOW));
+	}
+	var ivHex = iv.match(/0x[0-9A-Fa-f]{6,8}\b/g) || [];
+	var ivColor = iv.match(COLOR_SRC) || [];
+	check(iv.length > 0 && ivHex.length === mDeclared && !ivColor.length && !/\.setAlpha\(/.test(iv),
+		'no colour in IconsView outside its constants (no other literal, no theme, resource or Color.*, no alpha)',
+		(ivHex.length - mDeclared) + ' more literals ' + ivColor.join(' '));
+
+	/* ---- chroma mode: only the capture turns it on, and it always ends, in a finally ---- */
+	var capJava = java('CaptureActivity.java');
+	function blocksAfter(text, re) {
+		var out = [], m;
+		while ((m = re.exec(text))) {
+			var open = text.indexOf('{', m.index), depth = 0;
+			for (var i = open; i < text.length; i++) {
+				if (text[i] === '{') depth++;
+				else if (text[i] === '}' && --depth === 0) { out.push(text.slice(open, i + 1)); break; }
+			}
+		}
+		return out;
+	}
+	var onCalls = calls(/Chroma\.set\(\s*true\s*\)/g);
+	var offAll = (allJava.match(/Chroma\.set\(\s*false\s*\)/g) || []).length;
+	var offInFinally = blocksAfter(capJava, /\bfinally\s*\{/g).reduce(function (n, b) {
+		return n + (b.match(/Chroma\.set\(\s*false\s*\)/g) || []).length;
+	}, 0);
+	var safetyRun = (/private final Runnable safety = new Runnable\(\) \{([\s\S]*?)\};/.exec(capJava) || [])[1] || '';
+	check(onCalls.length === 1 && onCalls[0] === 'CaptureActivity.java' && offAll >= 1 && offAll === offInFinally &&
+		/finally\s*\{\s*Chroma\.set\(\s*false\s*\)/.test(bodyIn(capJava, 'private void release()')) &&
+		/SAFETY_MS = 5000;/.test(capJava) && /postDelayed\(safety, SAFETY_MS\)/.test(capJava) && /\bfail\(/.test(safetyRun) &&
+		/\brelease\(\)/.test(bodyIn(capJava, 'private void fail(')) && /\brelease\(\)/.test(bodyIn(capJava, 'protected void onDestroy(')) &&
+		/\brelease\(\)/.test(bodyIn(capJava, 'private void take()')) &&
+		capJava.indexOf('postDelayed(safety, SAFETY_MS)') < capJava.indexOf('Chroma.set(true)'),
+		'chroma mode: on only in CaptureActivity, after its 5 s safety timeout is armed; off only in a finally (release()), which a frame, every failure, the timeout and onDestroy reach',
+		onCalls.join(' ') + '; ' + offInFinally + ' of ' + offAll + ' "off" in a finally');
+	var cKey = (/static final int KEY = 0x([0-9A-Fa-f]{8});/.exec(java('Chroma.java')) || [])[1];
+	check(cKey && cKey.toUpperCase() === 'FFFF00FF' && /follows && Chroma\.on\(\)\) canvas\.drawColor\(Chroma\.KEY\)/.test(lv) &&
+		/Chroma\.on\(\)\) c\.drawColor\(Chroma\.KEY\)/.test(java('LiliWallpaper.java')),
+		'the key is pure magenta (#FF00FF), drawn by the wallpaper\'s views and by an engine drawing flat; the preview of a draft never keys');
 })();
 
 console.log('\n' + '='.repeat(70));

@@ -7,7 +7,8 @@ import android.content.SharedPreferences;
  * Everything the user can set, in one SharedPreferences file.
  *
  * The settings screen writes it, and the look (bg_*, size, lift) only when the
- * user applies a draft (Look.toPrefs, one apply()). Every wallpaper engine
+ * user applies a draft (Look.toPrefs, one apply()). Original writes orig_at once,
+ * HomeShot the shot_* keys of a capture. Every wallpaper engine
  * listens to it (they all run in this one process and share one
  * SharedPreferences instance), so an applied change shows on the home screen
  * with no page reload. Always reached through the application context, so that
@@ -17,12 +18,22 @@ final class Prefs {
 
     static final String FILE = "lili";
 
-    static final String BG_KIND = "bg_kind";       /* "preset" | "photo" */
+    static final String BG_KIND = "bg_kind";       /* "preset" | "photo" | "original"; absent until the first Apply */
     static final String BG_PRESET = "bg_preset";   /* a name in Backdrop.PRESETS */
     static final String BG_DIM = "bg_dim";         /* 0..60: % of black over a photo */
     static final String BG_REV = "bg_rev";         /* bumped whenever a new photo is applied, so listeners fire */
     static final String SIZE = "size";             /* 15..100: stage width, % of the largest 9:16 box */
     static final String LIFT = "lift";             /* 0..45: stage bottom, % of the screen height */
+
+    /* "My wallpaper" (Original): when files/original.jpg was kept; 0 = not yet. Not a
+     * look key - the look says only that it is behind her - but it is the decode
+     * key of that picture, and before the first Apply it makes My wallpaper the
+     * default look, so every view that draws the backdrop listens to it too. */
+    static final String ORIG_AT = "orig_at";
+
+    /* The user's real home screen, captured for the preview's icons layer
+     * (HomeShot): the screen size it was taken at, and when. */
+    static final String SHOT_W = "shot_w", SHOT_H = "shot_h", SHOT_AT = "shot_at";
 
     /* Lock mode: the lock-screen picture is Lili's and the refresh job keeps it
      * fresh. Nothing sets it true in this version (the feature is blocked; see
@@ -47,6 +58,7 @@ final class Prefs {
 
     static final String KIND_PRESET = "preset";
     static final String KIND_PHOTO = "photo";
+    static final String KIND_ORIGINAL = "original";
 
     static final String DEF_PRESET = "night";
     static final int DEF_DIM = 20, DEF_SIZE = 60, DEF_LIFT = 22;
@@ -78,8 +90,24 @@ final class Prefs {
         return v < lo ? lo : (v > hi ? hi : v);
     }
 
-    static boolean photo(SharedPreferences p) {
-        return KIND_PHOTO.equals(p.getString(BG_KIND, KIND_PRESET));
+    static boolean knownKind(String k) {
+        return KIND_PRESET.equals(k) || KIND_PHOTO.equals(k) || KIND_ORIGINAL.equals(k);
+    }
+
+    /** My wallpaper has been kept (files/original.jpg). */
+    static boolean hasOriginal(SharedPreferences p) {
+        return p.getLong(ORIG_AT, 0) > 0;
+    }
+
+    /**
+     * What is behind her, as applied. Before the first Apply (no bg_kind yet)
+     * that is My wallpaper once it has been kept, else the default preset. A look
+     * applied before My wallpaper was kept stays as it is.
+     */
+    static String kind(SharedPreferences p) {
+        String k = p.getString(BG_KIND, null);
+        if (k == null) return hasOriginal(p) ? KIND_ORIGINAL : KIND_PRESET;
+        return knownKind(k) ? k : KIND_PRESET;
     }
 
     static int dim(SharedPreferences p) {

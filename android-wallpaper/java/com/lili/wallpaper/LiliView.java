@@ -39,8 +39,13 @@ import android.widget.FrameLayout;
  * loads the page in still mode (#still=1), never tells it show() or hide(),
  * does not listen to the settings (it is a snapshot of them), and reports the
  * page's stillReady() - or a lost renderer - to its StillListener.
+ *
+ * Chroma mode (Chroma, while CaptureActivity takes the real home screen): a
+ * view that follows prefs - the wallpaper's - draws solid Chroma.KEY instead of
+ * the backdrop and hides the WebView, until it is off again. The preview of a
+ * draft and the still view never take part.
  */
-final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPreferenceChangeListener {
+final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPreferenceChangeListener, Chroma.Listener {
 
     private static final String TAG = LiliWeb.TAG;
     private static final long RETRY_MS = 30000;
@@ -127,13 +132,17 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
         backdrop = new View(context) {
             @Override
             protected void onDraw(Canvas canvas) {
-                if (look != null) Backdrop.draw(canvas, getWidth(), getHeight(), getContext(), look);
+                if (follows && Chroma.on()) canvas.drawColor(Chroma.KEY);
+                else if (look != null) Backdrop.draw(canvas, getWidth(), getHeight(), getContext(), look);
                 else Backdrop.draw(canvas, getWidth(), getHeight(), getContext());
             }
         };
         addView(backdrop, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         prefs = Prefs.of(context);
-        if (follows) prefs.registerOnSharedPreferenceChangeListener(this);
+        if (follows) {
+            prefs.registerOnSharedPreferenceChangeListener(this);
+            Chroma.listen(this);
+        }
         createWeb();
     }
 
@@ -151,6 +160,7 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
             web = LiliWeb.create(getContext(), callbacks);
             pageReady = false;
             addView(web, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+            if (follows && Chroma.on()) web.setVisibility(INVISIBLE);
             web.loadUrl(still != null ? LiliWeb.stillUrl() : LiliWeb.url(ep));
             if (!shown) web.onPause();
             Log.i(TAG, "[VIEW] WebView created" + (look != null ? " for a draft: " + look : ""));
@@ -191,11 +201,23 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
         try { web.evaluateJavascript(code, null); } catch (Throwable t) { Log.w(TAG, "[VIEW] js failed: " + code, t); }
     }
 
-    /** Only while it follows prefs. One Apply changes several keys: the page hears it once. */
+    /** Chroma mode on or off (main thread): the key colour and no Lili, or the backdrop and her again. */
+    @Override
+    public void chroma(boolean on) {
+        if (destroyed) return;
+        backdrop.invalidate();
+        if (web != null) web.setVisibility(on ? INVISIBLE : VISIBLE);
+    }
+
+    /**
+     * Only while it follows prefs. One Apply changes several keys: the page hears
+     * it once. orig_at: My wallpaper was kept, which may be the look (before the
+     * first Apply it is the default).
+     */
     @Override
     public void onSharedPreferenceChanged(SharedPreferences p, String key) {
         if (destroyed || key == null) return;
-        if (key.startsWith("bg_")) {
+        if (key.startsWith("bg_") || Prefs.ORIG_AT.equals(key)) {
             backdrop.invalidate();
         } else if (Prefs.SIZE.equals(key) || Prefs.LIFT.equals(key)) {
             main.removeCallbacks(sendConfig);
@@ -206,7 +228,10 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
     void destroy() {
         if (destroyed) return;
         destroyed = true;
-        if (follows) prefs.unregisterOnSharedPreferenceChangeListener(this);
+        if (follows) {
+            prefs.unregisterOnSharedPreferenceChangeListener(this);
+            Chroma.unlisten(this);
+        }
         main.removeCallbacks(sendConfig);
         dropWeb();
     }

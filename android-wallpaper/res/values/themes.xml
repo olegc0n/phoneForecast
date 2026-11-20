@@ -17,4 +17,22 @@
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:windowShowWallpaper">false</item>
     </style>
+    <!-- the home-screen capture: a window that draws nothing and does not dim,
+         animate or tint the bars, so the capture is the launcher as it is.
+         The bars are transparent with no contrast scrim (API 29+ attributes;
+         older versions ignore them), so they key out over the magenta too. -->
+    <style name="LiliCapture" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
 </resources>

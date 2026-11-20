@@ -13,10 +13,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -28,6 +30,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
+import android.text.TextPaint;
+import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.util.Log;
 import android.util.TypedValue;
@@ -52,21 +57,25 @@ import java.util.Locale;
  * The launcher icon and the wallpaper picker's settings button both open this.
  *
  * Native views built in code, framework only, on an opaque screen (nothing of
- * the wallpaper shows through): WHERE LILI LIVES - two switches, Home screen
- * and Lock screen, each with a line saying what that screen shows now; the
- * backdrop presets, a photo of one's own, how dark that photo is, her size and
- * how high she stands, Preview; and the caveats.
+ * the wallpaper shows through): the "My wallpaper" card while it is needed;
+ * WHERE LILI LIVES - one line saying what the system shows now; the
+ * background (My wallpaper, the six presets), a photo of one's own, how dark a
+ * picture is, her size and how high she stands, Preview; and the caveats.
+ *
+ * The workflow: edit the look here, then Preview. The preview shows it full
+ * screen, with home-screen icons over her, and holds the two switches - Home
+ * screen and Lock screen - as a PLAN; its Apply comes back here, and this
+ * screen first applies the look and then carries out what the plan changes.
+ * One code path for both, here.
  *
  * The look - background, photo, darkening, size, height - is a DRAFT (a Look)
  * held here. Nothing of it reaches prefs, so neither the running wallpaper nor
- * the lock picture changes, until the user applies it: Preview shows the draft
- * full screen (PreviewActivity), and its Apply comes back here to commit()
- * - the one place the look is written, in one apply(). Its Cancel, or Back,
+ * the lock picture changes, until the user applies it: commit() is the one
+ * place the look is written, in one apply(). Cancel in the preview, or Back,
  * keeps the draft as it was. A line says "Changes not applied yet" while the
  * draft differs from what is applied, and Preview is then the primary button.
  * Back with changes waiting asks: Apply, Discard or Keep editing. The draft
  * survives a recreation (onSaveInstanceState); a fresh open starts from prefs.
- * The switches are not part of it: they act at once.
  *
  * A photo chosen here is imported into files/bg_draft.jpg, never bg.jpg; Apply
  * moves it over bg.jpg and bumps bg_rev (Backdrop.adoptDraft), and a draft
@@ -74,62 +83,81 @@ import java.util.Locale;
  * in the process (the launcher's and the picker's), so the one that imported
  * last owns it (photoOwner), and no other deletes it from under it.
  *
- * The switches show the real state of the phone, read again on every resume
- * and after every action, never only what was asked for.
+ * My wallpaper (Original): on every open and resume until it is kept, the
+ * picture the user has on the home screen is asked for on a worker thread and
+ * kept for good as files/original.jpg. It is then the first background button,
+ * with its thumbnail, and the default look while nothing has been applied.
+ * When it cannot be read, a card at the top says why and offers a way:
+ * Android 13+ needs "All files access" (Allow opens that system setting;
+ * retried in onResume), up to Android 12 READ_EXTERNAL_STORAGE is asked for
+ * once, and in every case "Pick from photos" imports a photo into it instead.
+ * Once it is kept the card goes for good. Choose photo... never touches it.
  *
- * Home screen: on when getWallpaperInfo() is LiliWallpaper. Turning it on
- * saves what is on both screens now (Backup.beforeHome: on stock Android the
- * picker's "Home screen and lock screen" replaces the lock wallpaper too; it
- * asks for READ_EXTERNAL_STORAGE where that helps, API 23-32, and carries on
- * without it), then opens the system picker for Lili. Turning it off puts the
- * saved home wallpaper back - and the saved lock wallpaper as well, when her
- * live wallpaper was covering the lock screen. The preview's "Apply and set as
- * wallpaper" commits, then turns it on the same way.
+ * The status line shows the real state of the phone, read again on every
+ * resume and after every action, never only what was asked for:
+ * getWallpaperInfo() is LiliWallpaper (home), and for the lock screen the
+ * rules below (lockNow).
  *
- * Lock screen: can no longer be turned on (Android has no API to animate the
- * lock screen, and the still picture of her is blocked in this version; see
- * docs/WALLPAPER.md section 8 - LockPicture and LockJob stay in the tree).
- *   on, enabled   her picture from an earlier build is still on the lock screen
- *                 (getWallpaperId(FLAG_LOCK) is the id we stored), or her live
- *                 wallpaper is on the lock screen alone (API 34+). It can only
- *                 be turned off: the saved lock wallpaper back.
- *   on, disabled  her live wallpaper covers the lock screen with the home
+ * The plan, carried out after Apply (previewed()), differences only:
+ *   Home on   saves what is on both screens now (Backup.beforeHome: on stock
+ *             Android the picker's "Home screen and lock screen" replaces the
+ *             lock wallpaper too; it asks for READ_EXTERNAL_STORAGE where that
+ *             helps, API 23-32, and carries on without it), then opens the
+ *             system picker for Lili with its hint.
+ *   Home off  puts the saved home wallpaper back, else My wallpaper, else asks
+ *             (the no-backup dialog) - and the saved lock wallpaper as well,
+ *             when her live wallpaper was covering the lock screen.
+ *   Lock off  only for her picture from an earlier build, or her live
+ *             wallpaper on the lock screen alone (API 34+): the saved lock
+ *             wallpaper back. It runs first; a Home change follows it.
+ * The lock screen can no longer be taken (Android has no API to animate it,
+ * and the still picture of her is blocked in this version; see
+ * docs/WALLPAPER.md section 8 - LockPicture and LockJob stay in the tree):
+ *   L_PICTURE/L_STALE/L_UPDATING  her picture from an earlier build is still
+ *                 on the lock screen (getWallpaperId(FLAG_LOCK) is the id we
+ *                 stored); the preview's Lock switch can turn it off.
+ *   L_LIVE_ALONE  her live wallpaper on the lock screen alone (API 34+): the
+ *                 same.
+ *   L_WITH_HOME   her live wallpaper covers the lock screen with the home
  *                 screen: getWallpaperInfo(FLAG_LOCK) is ours (API 34+), or the
  *                 lock screen has no wallpaper of its own (getWallpaperId(
- *                 FLAG_LOCK) < 0, or below API 24) while Home is on. Turning
- *                 Home off ends it.
- *   off           disabled, saying why and what works instead.
+ *                 FLAG_LOCK) < 0, or below API 24) while Home is on. Home off
+ *                 ends it.
+ *   L_PREVIOUS    not her: the preview's switch is off and disabled, saying why.
  * With nothing saved for a screen being turned off, a small dialog offers a
- * photo, the system default, or Cancel, which leaves the switch on.
+ * photo, the system default, or Cancel, which leaves Lili there.
  *
  * Setting a live wallpaper: CHANGE_LIVE_WALLPAPER naming it; failing that the
  * live wallpaper chooser; failing that a hint. resolveActivity() is not used -
  * on Android 11+ package visibility makes it answer "no" for things that are
  * there - so the intents are simply tried.
  *
- * Colours: nothing on this screen, or on the preview's buttons, takes a colour
+ * Colours: nothing on this screen, or on the preview's controls, takes a colour
  * from the theme. On Huawei the theme's Button was drawn white while its text
  * stayed white. Every view gets its text colour and its background from the
- * constants below, and tools/check-wallpaper.js (group I) checks their contrast
- * and that no other colour or unstyled control sneaks in.
+ * constants below, made by the factories at the end (the preview uses them
+ * too), and tools/check-wallpaper.js (group I) checks their contrast and that
+ * no other colour or unstyled control sneaks in.
  *
- * The photo comes from the system picker and is copied once, on a worker
- * thread, so no URI grant is kept.
+ * Photos come from the system picker and are copied once, on a worker thread,
+ * so no URI grant is kept.
  */
 public class SettingsActivity extends Activity {
 
     private static final String TAG = LiliWeb.TAG;
-    private static final int REQ_PHOTO = 1, REQ_RESTORE_HOME = 2, REQ_RESTORE_LOCK = 3, REQ_READ = 4, REQ_PREVIEW = 5;
+    private static final int REQ_PHOTO = 1, REQ_RESTORE_HOME = 2, REQ_RESTORE_LOCK = 3, REQ_READ = 4, REQ_PREVIEW = 5,
+        REQ_ORIGINAL = 6, REQ_READ_ORIGINAL = 7;
     private static final int HOME = 1, LOCK = 2;                    /* the screens; 0 = none */
     private static final int PICK_LILI = 1, PICK_OLD = 2;           /* what the system picker was opened for */
+    private static final int PLAN_ON = 1, PLAN_OFF = 2;             /* the preview's Home switch, still to be carried out */
     private static final int S_DIM = 0, S_SIZE = 1, S_LIFT = 2;     /* the sliders */
     private static final String STATE_DRAFT = "draft";
 
-    /* ---- every colour on this screen and the preview's buttons (group I of check-wallpaper.js reads these lines) ---- */
-    static final int PANEL = 0xFF121821;            /* the whole screen, opaque: nothing shows through */
+    /* ---- every colour on this screen and the preview's controls (group I of check-wallpaper.js reads these lines) ---- */
+    static final int PANEL = 0xFF121821;            /* the whole screen, opaque: nothing shows through; the preview's panel */
     static final int TEXT = 0xFFE6E9EE;             /* labels on the panel and in the dialogs */
     static final int TEXT_DIM = 0xFFAAB2BF;         /* headings, status lines, tips; a disabled label */
-    static final int BUTTON = 0xFF2B3546;           /* a button's face */
+    static final int BUTTON = 0xFF2B3546;           /* a button's face; My wallpaper's label band */
     static final int BUTTON_DOWN = 0xFF3A475D;      /* ...pressed */
     static final int BUTTON_TEXT = 0xFFF2F4F7;
     static final int BUTTON_OFF = 0xFF1C2330;       /* a disabled button's face */
@@ -137,14 +165,22 @@ public class SettingsActivity extends Activity {
     static final int PRIMARY = 0xFF2F64B8;          /* the step to take next: Apply; Preview with changes waiting */
     static final int PRIMARY_DOWN = 0xFF214A85;     /* ...pressed */
     static final int EDGE = 0xFF6B7385;             /* a button's outline; a switch's track when off; a slider's rail */
-    static final int OUTLINE = 0xFF8089A0;          /* a button's outline over her backdrop (the preview): any preset, white, black */
+    static final int OUTLINE = 0xFF8089A0;          /* an outline over her backdrop (the preview): any preset, white, black */
     static final int ACCENT = 0xFF4F86D9;           /* a switch's track when on; a slider's fill */
     static final int KNOB = 0xFFF5F7FA;             /* a switch's and a slider's knob; the chosen swatch's ring */
     static final int DISABLED = 0xFF343C4A;         /* a disabled switch's track, off */
     static final int DISABLED_ON = 0xFF33507D;      /* a disabled switch's track, on: still reads as on */
     static final int KNOB_OFF = 0xFFA3ABB8;         /* a disabled switch's knob */
-    static final int DIALOG = 0xFF1A2230;           /* the dialogs */
+    static final int DIALOG = 0xFF1A2230;           /* the dialogs; the My wallpaper card */
     static final int RIPPLE = 0x33FFFFFF;           /* touch feedback */
+
+    /* what the lock screen shows (the preview gets it with the draft) */
+    static final int L_PREVIOUS = 0;        /* not Lili */
+    static final int L_UPDATING = 1;        /* her picture, a new one on its way */
+    static final int L_PICTURE = 2;         /* her picture, kept fresh */
+    static final int L_STALE = 3;           /* her picture, no longer kept fresh */
+    static final int L_WITH_HOME = 4;       /* her live wallpaper, with the home screen */
+    static final int L_LIVE_ALONE = 5;      /* her live wallpaper, on the lock screen alone (API 34+) */
 
     /* The settings screen whose draft holds files/bg_draft.jpg (it imported it
      * last). The launcher and the wallpaper picker can each open one; a fresh
@@ -155,9 +191,12 @@ public class SettingsActivity extends Activity {
     private SharedPreferences prefs;
     private Context app;
 
-    private Switch homeSwitch, lockSwitch;
-    private TextView homeLine, lockLine;
+    private TextView statusLine;
     private TextView hint, huaweiTip;
+    private View origCard;
+    private TextView origText;
+    private Button origAllow, origPick;
+    private OriginalTile origTile;
     private final Swatch[] swatches = new Swatch[Backdrop.PRESETS.length];
     private Button photoButton, previewButton;
     private View dimRow;
@@ -180,6 +219,14 @@ public class SettingsActivity extends Activity {
     private boolean alsoLock;       /* Home is being turned off while her live wallpaper covers the lock screen:
                                      * the lock screen gets its saved wallpaper back too */
     private boolean lockAfterPicker;/* ...and that waits for the picker to have put the old live wallpaper back */
+    private int pendingHome;        /* the plan's Home change, waiting for its Lock change: PLAN_ON / PLAN_OFF */
+
+    private int origState = -1;     /* Original.* from the last attempt; -1: none yet */
+    private boolean origBusy;       /* an attempt in flight */
+    private boolean origAsked;      /* READ_EXTERNAL_STORAGE asked for, for My wallpaper, by this screen */
+    private boolean origAsking;     /* ...and the question is up */
+    private boolean origImporting;  /* a photo is being kept as My wallpaper */
+    private boolean thumbBusy, thumbDone;
 
     private final Runnable refresher = new Runnable() {
         public void run() { refresh(); }
@@ -195,24 +242,15 @@ public class SettingsActivity extends Activity {
             }
         }
     };
-
-    private final CompoundButton.OnCheckedChangeListener homeFlip = new CompoundButton.OnCheckedChangeListener() {
-        public void onCheckedChanged(CompoundButton b, boolean on) {
-            if (on) homeOn(); else homeOff();
-        }
-    };
-
-    /* enabled only while it is on and can be turned off; nothing turns lock mode on */
-    private final CompoundButton.OnCheckedChangeListener lockFlip = new CompoundButton.OnCheckedChangeListener() {
-        public void onCheckedChanged(CompoundButton b, boolean on) {
-            if (on) refresh(); else lockOff();
-        }
+    private final Runnable planNext = new Runnable() {
+        public void run() { continuePlan(); }
     };
 
     /* Prefs changed: the lock screen's state (a picture set, lock mode off), the
-     * backups, or the look applied (here, or by another settings screen). The
-     * panel again, once. The lock picture's re-render after an Apply is asked
-     * for by commit() itself, once. A field: prefs hold listeners weakly. */
+     * backups, the look applied (here, or by another settings screen), My
+     * wallpaper kept. The panel again, once. The lock picture's re-render after
+     * an Apply is asked for by commit() itself, once. A field: prefs hold
+     * listeners weakly. */
     private final SharedPreferences.OnSharedPreferenceChangeListener watch =
         new SharedPreferences.OnSharedPreferenceChangeListener() {
             public void onSharedPreferenceChanged(SharedPreferences p, String key) {
@@ -231,10 +269,12 @@ public class SettingsActivity extends Activity {
         saved = Look.fromPrefs(prefs);
         Look kept = null;
         if (state != null) {
-            /* recreated: while the permission question was up, or after the
+            /* recreated: while a permission question was up, or after the
              * process was reclaimed in the background - the draft as it was */
             waiting = state.getInt("waiting");
             asked = state.getBoolean("asked");
+            origAsked = state.getBoolean("orig_asked");
+            pendingHome = state.getInt("pending_home");
             kept = Look.fromBundle(state.getBundle(STATE_DRAFT));
         }
         if (kept != null) {
@@ -259,16 +299,30 @@ public class SettingsActivity extends Activity {
         int pad = dp(20);
         col.setPadding(pad, pad, pad, pad);
 
-        /* ---- where she lives: these act at once ---- */
-        col.addView(text(getString(R.string.where_heading), 15, TEXT_DIM), wrap(0, dp(2)));
-        homeSwitch = toggle(R.string.where_home);
-        homeLine = text("", 14, TEXT_DIM);
-        col.addView(homeSwitch, wrap(0, 0));
-        col.addView(homeLine, wrap(0, dp(6)));
-        lockSwitch = toggle(R.string.where_lock);
-        lockLine = text("", 14, TEXT_DIM);
-        col.addView(lockSwitch, wrap(0, 0));
-        col.addView(lockLine, wrap(0, dp(6)));
+        /* ---- My wallpaper, while it cannot be kept: why, and what to do ---- */
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(16), dp(16), dp(12));
+        card.setBackground(rounded(DIALOG, dp(12)));
+        origText = text("", 15, TEXT);
+        card.addView(origText, wrap(0, dp(12)));
+        origAllow = button(R.string.orig_allow, new View.OnClickListener() {
+            public void onClick(View v) { allowAllFiles(); }
+        });
+        paint(origAllow, true);
+        card.addView(origAllow, wrap(0, dp(8)));
+        origPick = button(R.string.orig_pick, new View.OnClickListener() {
+            public void onClick(View v) { pickPhoto(REQ_ORIGINAL); }
+        });
+        card.addView(origPick, wrap(0, 0));
+        card.setVisibility(View.GONE);
+        origCard = card;
+        col.addView(card, wrap(0, dp(20)));
+
+        /* ---- where she lives: what the system says, read-only (the preview changes it) ---- */
+        col.addView(text(getString(R.string.where_heading), 15, TEXT_DIM), wrap(0, dp(4)));
+        statusLine = text("", 16, TEXT);
+        col.addView(statusLine, wrap(0, dp(4)));
 
         hint = text(getString(R.string.hint_manual), 14, TEXT_DIM);
         hint.setVisibility(getPackageManager().hasSystemFeature(PackageManager.FEATURE_LIVE_WALLPAPER)
@@ -283,6 +337,15 @@ public class SettingsActivity extends Activity {
         col.addView(text(getString(R.string.background), 15, TEXT_DIM), wrap(dp(16), dp(8)));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        origTile = new OriginalTile(this, getString(R.string.my_wallpaper));
+        origTile.setContentDescription(getString(R.string.my_wallpaper));
+        origTile.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { setDraft(draft.withOriginal()); }
+        });
+        LinearLayout.LayoutParams lt = new LinearLayout.LayoutParams(0, dp(60), 2f);
+        lt.rightMargin = dp(8);
+        row.addView(origTile, lt);
+        origTile.setVisibility(Original.have(app) ? View.VISIBLE : View.GONE);
         for (int i = 0; i < Backdrop.PRESETS.length; i++) {
             final String name = Backdrop.PRESETS[i];
             Swatch s = new Swatch(this, name);
@@ -290,7 +353,7 @@ public class SettingsActivity extends Activity {
             s.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { setDraft(draft.withPreset(name)); }
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(52), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(60), 1f);
             lp.rightMargin = i < Backdrop.PRESETS.length - 1 ? dp(8) : 0;
             row.addView(s, lp);
             swatches[i] = s;
@@ -342,8 +405,6 @@ public class SettingsActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
 
-        homeSwitch.setOnCheckedChangeListener(homeFlip);
-        lockSwitch.setOnCheckedChangeListener(lockFlip);
         showDraft(false);                         /* the sliders were made at the draft's values */
     }
 
@@ -359,6 +420,8 @@ public class SettingsActivity extends Activity {
         refresh();
         main.removeCallbacks(recheck);
         main.postDelayed(recheck, 800);
+        /* back from All files access, the permission question or anywhere else: once more */
+        obtainOriginal();
     }
 
     @Override
@@ -366,6 +429,8 @@ public class SettingsActivity extends Activity {
         super.onSaveInstanceState(out);
         out.putInt("waiting", waiting);
         out.putBoolean("asked", asked);
+        out.putBoolean("orig_asked", origAsked);
+        out.putInt("pending_home", pendingHome);
         out.putBundle(STATE_DRAFT, draft.toBundle());
     }
 
@@ -385,6 +450,7 @@ public class SettingsActivity extends Activity {
         prefs.unregisterOnSharedPreferenceChangeListener(watch);
         main.removeCallbacks(refresher);
         main.removeCallbacks(recheck);
+        main.removeCallbacks(planNext);
         if (dialog != null) {
             dialog.setOnDismissListener(null);
             dialog.dismiss();
@@ -402,15 +468,7 @@ public class SettingsActivity extends Activity {
 
     /* ---- the state of things ---- */
 
-    /* what the lock screen shows */
-    private static final int L_PREVIOUS = 0;      /* not Lili */
-    private static final int L_UPDATING = 1;      /* her picture, a new one on its way */
-    private static final int L_PICTURE = 2;       /* her picture, kept fresh */
-    private static final int L_STALE = 3;         /* her picture, no longer kept fresh */
-    private static final int L_WITH_HOME = 4;     /* her live wallpaper, with the home screen */
-    private static final int L_LIVE_ALONE = 5;    /* her live wallpaper, on the lock screen alone (API 34+) */
-
-    /** Everything on the panel that depends on the state of things: the switches from the system, never from prefs alone. */
+    /** Everything on the panel that depends on the state of things: from the system, never from prefs alone. */
     private void refresh() {
         if (isDestroyed()) return;
         main.removeCallbacks(refresher);
@@ -427,67 +485,72 @@ public class SettingsActivity extends Activity {
             return;                               /* inBackground refreshes */
         }
 
-        /* the home screen */
-        boolean home = homeOurs;
-        String homeText = getString(homeOurs ? R.string.home_on : R.string.screen_previous);
-        if (saving == HOME || waiting == HOME) {
-            home = true;
-            homeText = getString(R.string.saving);
-        } else if (restoring == HOME) {
-            home = false;
-            homeText = getString(R.string.restoring);
-        } else if (asking == HOME || picking == PICK_OLD) {
-            home = false;
-        } else if (picking == PICK_LILI) {
-            home = true;
-        }
-        show(homeSwitch, home, homeFlip);
-        homeSwitch.setEnabled(idle);
-        homeLine.setText(homeText);
-
-        /* the lock screen */
-        boolean lock;
-        boolean offable = false;
-        String lockText;
-        if (restoring == LOCK || (restoring == HOME && alsoLock)) {
-            lock = false;
-            lockText = getString(R.string.restoring);
+        /* where she lives: what the system says, or what is being done */
+        String status;
+        if (saving != 0 || waiting != 0) {
+            status = getString(R.string.saving);
+        } else if (restoring != 0) {
+            status = getString(R.string.restoring);
         } else {
-            int now = lockNow(homeOurs);
-            lock = now != L_PREVIOUS && asking != LOCK;
-            offable = now != L_PREVIOUS && now != L_WITH_HOME;
-            switch (now) {
-                case L_UPDATING:
-                    lockText = getString(R.string.lock_updating);
-                    break;
-                case L_PICTURE:
-                    lockText = getString(R.string.lock_on, when(prefs.getLong(Prefs.LOCK_AT, 0)));
-                    break;
-                case L_STALE:
-                    lockText = getString(R.string.lock_stale, when(prefs.getLong(Prefs.LOCK_AT, 0)));
-                    break;
-                case L_WITH_HOME:
-                    lockText = getString(R.string.lock_with_home);
-                    break;
-                case L_LIVE_ALONE:
-                    lockText = getString(R.string.home_on);
-                    break;
-                default:
-                    lockText = getString(R.string.lock_unavailable);
-            }
+            status = status(homeOurs, lockNow(homeOurs));
         }
-        show(lockSwitch, lock, lockFlip);
-        lockSwitch.setEnabled(idle && offable);
-        lockLine.setText(lockText);
+        statusLine.setText(status);
         huaweiTip.setVisibility(huawei() && Prefs.lockOn(prefs) ? View.VISIBLE : View.GONE);
 
-        /* the look as applied - by another settings screen, perhaps; a draft
-         * nobody has touched here follows it */
+        /* My wallpaper kept meanwhile (here, or by another settings screen) */
+        if (Original.have(app) && origState != Original.HAVE) {
+            origState = Original.HAVE;
+            loadThumb();
+        }
+        showOriginal();
+
+        /* the look as applied - by another settings screen, perhaps, or the
+         * default once My wallpaper is kept; a draft nobody has touched here
+         * follows it */
         Look now = Look.fromPrefs(prefs);
         boolean follow = !now.equals(saved) && draft.equals(saved);
         saved = now;
         if (follow) draft = now;
         showDraft(follow);
+    }
+
+    /* "Lili is on: home screen", "...home and lock screen (animated)", "not set"... */
+    private String status(boolean homeOurs, int lock) {
+        switch (lock) {
+            case L_WITH_HOME:
+                return getString(R.string.status_both);
+            case L_LIVE_ALONE:
+                return getString(R.string.status_lock_live);
+            case L_UPDATING:
+            case L_PICTURE:
+            case L_STALE:
+                return getString(homeOurs ? R.string.status_home_picture : R.string.status_picture) + "\n" + lockDetail(lock);
+            default:
+                return getString(homeOurs ? R.string.status_home : R.string.status_none);
+        }
+    }
+
+    /* her picture from an earlier build: how fresh it is */
+    private String lockDetail(int lock) {
+        if (lock == L_UPDATING) return getString(R.string.lock_updating);
+        long at = prefs.getLong(Prefs.LOCK_AT, 0);
+        return getString(lock == L_PICTURE ? R.string.lock_on : R.string.lock_stale, when(at));
+    }
+
+    /* the line under the preview's Lock switch */
+    private String lockNote(int lock) {
+        switch (lock) {
+            case L_WITH_HOME:
+                return getString(R.string.lock_with_home);
+            case L_LIVE_ALONE:
+                return getString(R.string.home_on);
+            case L_UPDATING:
+            case L_PICTURE:
+            case L_STALE:
+                return lockDetail(lock);
+            default:
+                return getString(R.string.lock_unavailable);
+        }
     }
 
     /*
@@ -523,7 +586,12 @@ public class SettingsActivity extends Activity {
         return homeOurs && mirror ? L_WITH_HOME : L_PREVIOUS;
     }
 
-    /** Lili's live wallpaper is on the home screen. The preview asks too, for its Apply button. */
+    /* the preview's Lock switch can turn this off */
+    private static boolean offable(int lock) {
+        return lock != L_PREVIOUS && lock != L_WITH_HOME;
+    }
+
+    /** Lili's live wallpaper is on the home screen. The preview asks too. */
     static boolean homeIsOurs(Context c) {
         try {
             return ours(c, WallpaperManager.getInstance(c).getWallpaperInfo());
@@ -562,12 +630,143 @@ public class SettingsActivity extends Activity {
         return saving != 0 || waiting != 0 || restoring != 0 || asking != 0;
     }
 
+    /* ---- My wallpaper: kept once, for good ---- */
+
+    /* Asks for it on a worker thread, unless it is kept or being asked for. */
+    private void obtainOriginal() {
+        if (origBusy || isDestroyed() || origAsking) return;
+        if (Original.have(app)) {
+            origState = Original.HAVE;
+            showOriginal();
+            loadThumb();
+            return;
+        }
+        origBusy = true;
+        new Thread(new Runnable() {
+            public void run() {
+                final int r = Original.obtain(app);
+                main.post(new Runnable() {
+                    public void run() { obtained(r); }
+                });
+            }
+        }, "lili-original").start();
+    }
+
+    private void obtained(int r) {
+        origBusy = false;
+        if (isDestroyed()) return;
+        origState = r;
+        Log.i(TAG, "[ORIG] settings: " + r);
+        if (r == Original.DENIED && !origAsked && canAskRead()) {
+            /* up to Android 12: the same question as before Home on, once */
+            origAsked = true;
+            origAsking = true;
+            showOriginal();
+            requestPermissions(new String[] { Manifest.permission.READ_EXTERNAL_STORAGE }, REQ_READ_ORIGINAL);
+            return;
+        }
+        if (r == Original.HAVE) loadThumb();
+        refresh();                                /* the tile, the card, the default look */
+    }
+
+    /* The card (only while My wallpaper cannot be kept) and the tile (once it is). */
+    private void showOriginal() {
+        boolean have = Original.have(app);
+        origTile.setVisibility(have ? View.VISIBLE : View.GONE);
+        int text;
+        boolean allow = false;
+        switch (origState) {
+            case Original.NEED_ALL_FILES:
+                text = R.string.orig_all_files;
+                allow = true;
+                break;
+            case Original.LIVE:
+                text = R.string.orig_live;
+                break;
+            case Original.DENIED:
+            case Original.NO_BACKUP:
+            case Original.FAILED:
+                text = R.string.orig_unreadable;
+                break;
+            default:
+                text = 0;
+        }
+        boolean card = !have && !origAsking && text != 0;
+        origCard.setVisibility(card ? View.VISIBLE : View.GONE);
+        if (!card) return;
+        origText.setText(text);
+        origAllow.setVisibility(allow ? View.VISIBLE : View.GONE);
+        origPick.setText(allow ? R.string.orig_pick_instead : R.string.orig_pick);
+        origPick.setEnabled(!origImporting);
+    }
+
+    /* Android 13+: the system's "All files access" page for Lili; onResume tries again. */
+    private void allowAllFiles() {
+        if (Build.VERSION.SDK_INT < 30) return;
+        Intent own = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:" + getPackageName()));
+        if (start(own)) return;
+        start(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+    }
+
+    /* A photo picked to be My wallpaper. */
+    private void keepPhoto(final Uri uri) {
+        origImporting = true;
+        showOriginal();
+        new Thread(new Runnable() {
+            public void run() {
+                boolean ok = true;
+                try {
+                    Original.fromPhoto(app, uri);
+                } catch (Throwable t) {
+                    ok = false;
+                    Log.w(TAG, "[ORIG] the photo could not be kept", t);
+                }
+                final boolean done = ok;
+                main.post(new Runnable() {
+                    public void run() {
+                        origImporting = false;
+                        if (isDestroyed()) return;
+                        if (done) {
+                            origState = Original.HAVE;
+                            loadThumb();
+                        } else {
+                            toast(getString(R.string.photo_failed));
+                        }
+                        refresh();
+                    }
+                });
+            }
+        }, "lili-original-photo").start();
+    }
+
+    /* the tile's picture, decoded small, once */
+    private void loadThumb() {
+        if (thumbBusy || thumbDone) return;
+        thumbBusy = true;
+        final int minW = dp(110);
+        new Thread(new Runnable() {
+            public void run() {
+                final Bitmap b = Original.thumbnail(app, minW);
+                main.post(new Runnable() {
+                    public void run() {
+                        thumbBusy = false;
+                        if (b == null || isDestroyed()) return;
+                        thumbDone = true;
+                        origTile.setThumb(b);
+                    }
+                });
+            }
+        }, "lili-thumb").start();
+    }
+
     /* ---- the draft: background, photo, darkening, size, height ---- */
 
-    /** The draft on the panel: the chosen swatch, the darkening (photo only), the sliders if asked, and whether it is applied. */
+    /** The draft on the panel: the chosen background, the darkening (pictures only), the sliders if asked, and whether it is applied. */
     private void showDraft(boolean sliders) {
-        for (Swatch s : swatches) s.setChosen(!draft.photo && s.name.equals(draft.preset));
-        dimRow.setVisibility(draft.photo ? View.VISIBLE : View.GONE);
+        for (Swatch s : swatches) s.setChosen(!draft.picture() && s.name.equals(draft.preset));
+        origTile.setChosen(draft.original);
+        dimRow.setVisibility(draft.picture() ? View.VISIBLE : View.GONE);
         if (sliders) {
             /* not from the user: the listeners only relabel */
             dimBar.setProgress(draft.dim - Prefs.DIM_MIN);
@@ -575,7 +774,8 @@ public class SettingsActivity extends Activity {
             liftBar.setProgress(draft.lift - Prefs.LIFT_MIN);
         }
         photoButton.setEnabled(!importing);
-        previewButton.setEnabled(!importing);     /* a second, until the photo is in the draft */
+        /* a second, until the photo is in the draft; and not while a plan is carried out */
+        previewButton.setEnabled(!importing && !busy());
         boolean dirty = !draft.equals(saved);
         notApplied.setVisibility(dirty ? View.VISIBLE : View.GONE);
         if (dirty != shownDirty) {
@@ -584,7 +784,7 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    /** A new draft from a swatch, a slider or a photo. A draft photo let go of is deleted. */
+    /** A new draft from a swatch, My wallpaper, a slider or a photo. A draft photo let go of is deleted. */
     private void setDraft(Look next) {
         if (draft.draftPhoto && !next.draftPhoto) dropDraftPhoto();
         draft = next;
@@ -620,12 +820,16 @@ public class SettingsActivity extends Activity {
         toast(getString(R.string.photo_failed));
     }
 
-    /* Preview: the draft full screen, whether or not anything changed. */
+    /* Preview: the draft full screen, whether or not anything changed, with what
+     * the lock screen shows now (for its switch). */
     private void preview() {
-        if (importing) return;
+        if (importing || busy()) return;
         checkDraftPhoto();
         Intent i = new Intent(this, PreviewActivity.class);
         draft.into(i);
+        int lock = lockNow(homeIsOurs());
+        i.putExtra(PreviewActivity.EXTRA_LOCK_STATE, lock);
+        i.putExtra(PreviewActivity.EXTRA_LOCK_NOTE, lockNote(lock));
         try {
             startActivityForResult(i, REQ_PREVIEW);
         } catch (ActivityNotFoundException e) {
@@ -633,17 +837,41 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    /* Back from the preview. Apply: the draft it showed is applied, and when
-     * the button said "Apply and set as wallpaper", Home is turned on as by
-     * the switch. Cancel or Back: the draft stays as it was. */
+    /*
+     * Back from the preview. Apply: the draft it showed is applied, then the
+     * plan's differences from what the system shows now - Lock off first (her
+     * old picture), then Home on or off. Cancel or Back: nothing changes, the
+     * draft stays as it was.
+     */
     private void previewed(int result, Intent data) {
         if (result != RESULT_OK) return;
         Look look = Look.from(data);
         if (look == null) look = draft;
-        boolean setHome = data != null && data.getBooleanExtra(PreviewActivity.EXTRA_SET_HOME, false);
+        boolean homeOurs = homeIsOurs();
+        boolean wantHome = data != null ? data.getBooleanExtra(PreviewActivity.EXTRA_HOME, homeOurs) : homeOurs;
+        boolean lockOff = data != null && data.getBooleanExtra(PreviewActivity.EXTRA_LOCK_OFF, false);
         if (!commit(look)) return;
-        if (setHome && !homeIsOurs()) homeOn();               /* its own toasts follow */
-        else toast(getString(R.string.applied), Toast.LENGTH_SHORT);
+        pendingHome = wantHome == homeOurs ? 0 : wantHome ? PLAN_ON : PLAN_OFF;
+        boolean lockChange = lockOff && offable(lockNow(homeOurs));
+        Log.i(TAG, "[LIFE] settings: the plan - home " + (pendingHome == PLAN_ON ? "on" : pendingHome == PLAN_OFF ? "off" : "as it is") +
+            ", lock " + (lockChange ? "off" : "as it is"));
+        if (pendingHome == 0) toast(getString(R.string.applied), Toast.LENGTH_SHORT);
+        if (lockChange) {
+            lockOff();                            /* the Home change, if any, follows it (continuePlan) */
+            return;
+        }
+        continuePlan();
+    }
+
+    /* The plan's Home change, once nothing else is being done. */
+    private void continuePlan() {
+        if (pendingHome == 0 || isDestroyed() || busy()) return;
+        int p = pendingHome;
+        pendingHome = 0;
+        boolean ours = homeIsOurs();
+        if (p == PLAN_ON && !ours) homeOn();      /* its own toasts follow */
+        else if (p == PLAN_OFF && ours) homeOff();
+        else refresh();
     }
 
     /**
@@ -660,7 +888,7 @@ public class SettingsActivity extends Activity {
             else toast(getString(R.string.photo_failed));
             return false;
         }
-        if (!look.equals(Look.fromPrefs(prefs))) {
+        if (!look.equals(Look.fromPrefs(prefs)) || !prefs.contains(Prefs.BG_KIND)) {
             int rev = prefs.getInt(Prefs.BG_REV, 0);
             if (look.draftPhoto) {
                 if (!Backdrop.adoptDraft(app, look.stamp, rev + 1)) {
@@ -748,6 +976,7 @@ public class SettingsActivity extends Activity {
         saving = 0;
         if (result == Backup.DENIED && !asked && canAskRead() && !isDestroyed()) {
             asked = true;
+            origAsked = true;                     /* the same question: not asked again for My wallpaper on resume */
             waiting = screen;
             Log.i(TAG, "[LIFE] settings: asking for READ_EXTERNAL_STORAGE to save the wallpaper");
             requestPermissions(new String[] { Manifest.permission.READ_EXTERNAL_STORAGE }, REQ_READ);
@@ -765,10 +994,17 @@ public class SettingsActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (request == REQ_READ_ORIGINAL) {
+            origAsking = false;
+            Log.i(TAG, "[ORIG] READ_EXTERNAL_STORAGE " + (granted ? "granted" : "denied"));
+            if (granted) obtainOriginal();
+            else showOriginal();                  /* the card: pick it from the photos */
+            return;
+        }
         if (request != REQ_READ || waiting == 0) return;
         int screen = waiting;
         waiting = 0;
-        boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
         Log.i(TAG, "[LIFE] settings: READ_EXTERNAL_STORAGE " + (granted ? "granted" : "denied"));
         if (granted) save(screen);                /* `asked` is set: no second question */
         else takeHome(true);
@@ -780,7 +1016,7 @@ public class SettingsActivity extends Activity {
         String pick = getString(R.string.pick_home_hint);
         Toast t = toast(denied ? getString(R.string.backup_denied) + "\n\n" + pick : pick);
         if (setWallpaper()) {
-            picking = PICK_LILI;                  /* on until we are back and the system says otherwise */
+            picking = PICK_LILI;                  /* until we are back and the system says otherwise */
         } else {
             t.cancel();                           /* there is no picker: the manual hint shows */
             if (denied) toast(getString(R.string.backup_denied));
@@ -821,11 +1057,13 @@ public class SettingsActivity extends Activity {
         /* her live wallpaper on the lock screen too: it leaves both */
         alsoLock = LockPicture.supported() && lockNow(true) == L_WITH_HOME;
         int plan = Backup.homePlan(app);
-        if (plan == Backup.PICTURE) {
+        if (plan == Backup.PICTURE || plan == Backup.ORIGINAL) {
+            /* the saved picture, or else My wallpaper */
             final boolean lock = alsoLock;
+            final int p = plan;
             inBackground(HOME, new Job() {
                 public void run() throws Exception {
-                    Backup.restore(app, false, Backup.PICTURE);
+                    Backup.restore(app, false, p);
                     if (lock) Backup.restoreLockAfterHome(app);
                 }
             });
@@ -836,7 +1074,7 @@ public class SettingsActivity extends Activity {
             Toast t = toast(getString(alsoLock ? R.string.pick_old_both : R.string.pick_old_home));
             ComponentName c = Backup.component(Backup.home(prefs));
             if (openPicker(c) || start(new Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))) {
-                picking = PICK_OLD;               /* off until we are back and the system says otherwise */
+                picking = PICK_OLD;               /* until we are back and the system says otherwise */
                 refresh();
                 return;
             }
@@ -904,7 +1142,7 @@ public class SettingsActivity extends Activity {
         void run() throws Exception;
     }
 
-    /* A restore on a worker thread; both switches read again after it. */
+    /* A restore on a worker thread; the status read again after it. */
     private void inBackground(final int screen, final Job job) {
         restoring = screen;
         refresh();
@@ -925,12 +1163,13 @@ public class SettingsActivity extends Activity {
         }, "lili-restore").start();
     }
 
-    /* Done. A lock screen still showing her picture shows the switch on again, to try once more. */
+    /* Done; the plan's Home change, if one waits. A lock screen still showing her picture shows so in the status. */
     private void restored(String error) {
         restoring = 0;
         alsoLock = false;
         if (error != null) toast(getString(R.string.restore_failed, error));
         refresh();
+        continuePlan();
     }
 
     /* Nothing saved for that screen: a photo, the system default, or leave Lili there. */
@@ -959,13 +1198,16 @@ public class SettingsActivity extends Activity {
         }), wrap(0, 0));
 
         d.setOnCancelListener(new DialogInterface.OnCancelListener() {
-            public void onCancel(DialogInterface di) { alsoLock = false; }
+            public void onCancel(DialogInterface di) {
+                alsoLock = false;
+                main.post(planNext);              /* after onDismiss: Lili stays, the rest of the plan goes on */
+            }
         });
         d.setOnDismissListener(new DialogInterface.OnDismissListener() {
             public void onDismiss(DialogInterface di) {
                 if (dialog == d) dialog = null;
                 asking = 0;
-                refresh();                        /* Cancel: the switch is on again */
+                refresh();
             }
         });
         dialog = d;
@@ -1021,6 +1263,7 @@ public class SettingsActivity extends Activity {
             startActivityForResult(get, request);
         } catch (ActivityNotFoundException e) {
             toast(getString(R.string.photo_failed));
+            if (request == REQ_RESTORE_HOME || request == REQ_RESTORE_LOCK) main.post(planNext);
         }
     }
 
@@ -1032,15 +1275,22 @@ public class SettingsActivity extends Activity {
             return;
         }
         boolean restore = request == REQ_RESTORE_HOME || request == REQ_RESTORE_LOCK;
-        /* no photo picked for a restore: nothing changed, the switch shows Lili still there */
+        /* no photo picked: nothing changed - for a restore, Lili is still there and the plan goes on */
         if (result != RESULT_OK || data == null || data.getData() == null) {
-            if (restore) alsoLock = false;
+            if (restore) {
+                alsoLock = false;
+                main.post(planNext);
+            }
             return;
         }
         final Uri uri = data.getData();
         if (restore) {
             if (busy()) return;
             restorePhoto(uri, request == REQ_RESTORE_LOCK);
+            return;
+        }
+        if (request == REQ_ORIGINAL) {
+            keepPhoto(uri);
             return;
         }
         if (request != REQ_PHOTO) return;
@@ -1083,7 +1333,7 @@ public class SettingsActivity extends Activity {
         refresh();
     }
 
-    /* ---- views: every one coloured here, from the constants above ---- */
+    /* ---- views: every one coloured here, from the constants above (the preview's too) ---- */
 
     private Toast toast(String s) {
         return toast(s, Toast.LENGTH_LONG);
@@ -1102,23 +1352,30 @@ public class SettingsActivity extends Activity {
             new int[] { disabled, enabled });
     }
 
-    private static GradientDrawable rounded(int color, float radius) {
+    static GradientDrawable rounded(int color, float radius) {
         GradientDrawable g = new GradientDrawable();
         g.setColor(color);
         g.setCornerRadius(radius);
         return g;
     }
 
-    /** A switch with its label: our knob and track, so no theme or vendor colours it. */
-    private Switch toggle(int label) {
-        Switch s = new Switch(this);
+    /** The preview's panel over her backdrop: opaque PANEL, a 2 dp OUTLINE that reads over any backdrop. */
+    static Drawable panelOverBackdrop(Context c) {
+        GradientDrawable g = rounded(PANEL, px(c, 12));
+        g.setStroke(px(c, 2), OUTLINE);
+        return g;
+    }
+
+    /** A switch with its label: our knob and track, so no theme or vendor colours it. The preview's switches. */
+    static Switch toggle(Context c, int label) {
+        Switch s = new Switch(c);
         s.setText(label);
-        s.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+        s.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         s.setTextColor(states(TEXT, TEXT_DIM));
         s.setShowText(false);
         s.setSplitTrack(false);
 
-        int knob = dp(18), gap = dp(3);
+        int knob = px(c, 18), gap = px(c, 3);
         GradientDrawable dot = new GradientDrawable();
         dot.setShape(GradientDrawable.OVAL);
         dot.setColor(states(KNOB, KNOB_OFF));
@@ -1128,8 +1385,8 @@ public class SettingsActivity extends Activity {
         s.setThumbDrawable(thumb);
 
         GradientDrawable track = new GradientDrawable();
-        track.setCornerRadius(dp(12));
-        track.setSize(dp(48), dp(24));
+        track.setCornerRadius(px(c, 12));
+        track.setSize(px(c, 48), px(c, 24));
         track.setColor(new ColorStateList(
             new int[][] {
                 new int[] { -android.R.attr.state_enabled, android.R.attr.state_checked },
@@ -1138,8 +1395,8 @@ public class SettingsActivity extends Activity {
                 new int[0] },
             new int[] { DISABLED_ON, DISABLED, ACCENT, EDGE }));
         s.setTrackDrawable(track);
-        s.setSwitchMinWidth(dp(48));
-        s.setSwitchPadding(dp(16));
+        s.setSwitchMinWidth(px(c, 48));
+        s.setSwitchPadding(px(c, 16));
         if (Build.VERSION.SDK_INT >= 23) {
             s.setThumbTintList(null);                        /* no vendor tint over our colours */
             s.setTrackTintList(null);
@@ -1147,8 +1404,15 @@ public class SettingsActivity extends Activity {
         /* the mask only bounds the ripple; its colour is never drawn */
         s.setBackground(new RippleDrawable(ColorStateList.valueOf(RIPPLE), null, new ColorDrawable(KNOB)));
         s.setBackgroundTintList(null);
-        s.setPadding(0, dp(8), 0, dp(2));
+        s.setPadding(0, px(c, 6), 0, px(c, 2));
         return s;
+    }
+
+    /** The checked state set by code, not by a tap: no listener fires. */
+    static void show(Switch s, boolean on, CompoundButton.OnCheckedChangeListener listener) {
+        s.setOnCheckedChangeListener(null);
+        s.setChecked(on);
+        s.setOnCheckedChangeListener(listener);
     }
 
     /** A button: our face, outline and text, so no theme or vendor colours it. The preview's buttons too. */
@@ -1219,8 +1483,9 @@ public class SettingsActivity extends Activity {
         return bar;
     }
 
-    private TextView text(String s, int sp, int color) {
-        TextView t = new TextView(this);
+    /** A text in one of our colours. The preview's notes too. */
+    static TextView text(Context c, String s, int sp, int color) {
+        TextView t = new TextView(c);
         t.setText(s);
         t.setTextColor(color);
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
@@ -1228,12 +1493,8 @@ public class SettingsActivity extends Activity {
         return t;
     }
 
-    /* the checked state set by us, not by a tap: no listener fires */
-    private static void show(Switch s, boolean on, CompoundButton.OnCheckedChangeListener listener) {
-        if (s.isChecked() == on) return;
-        s.setOnCheckedChangeListener(null);
-        s.setChecked(on);
-        s.setOnCheckedChangeListener(listener);
+    private TextView text(String s, int sp, int color) {
+        return text(this, s, sp, color);
     }
 
     private LinearLayout.LayoutParams wrap(int top, int bottom) {
@@ -1248,7 +1509,7 @@ public class SettingsActivity extends Activity {
         return px(this, v);
     }
 
-    private static int px(Context c, float dp) {
+    static int px(Context c, float dp) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, c.getResources().getDisplayMetrics());
     }
 
@@ -1290,6 +1551,81 @@ public class SettingsActivity extends Activity {
             ring.setStrokeWidth(w);
             ring.setAlpha(chosen ? 255 : 90);
             box.inset(w / 2, w / 2);
+            canvas.drawRoundRect(box, r, r, ring);
+        }
+    }
+
+    /**
+     * My wallpaper: its thumbnail, centre-cropped, with "My wallpaper" on a
+     * BUTTON band along the bottom (BUTTON_TEXT on BUTTON, as on every
+     * button), ringed when chosen like a swatch.
+     */
+    private static final class OriginalTile extends View {
+        private final String label;
+        private Bitmap thumb;
+        private boolean chosen;
+        private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint band = new Paint();
+        private final Paint image = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+        private final TextPaint words = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        private final Path clip = new Path();
+        private final RectF box = new RectF();
+        private final Rect src = new Rect(), dst = new Rect();
+
+        OriginalTile(Context context, String label) {
+            super(context);
+            this.label = label;
+            ring.setStyle(Paint.Style.STROKE);
+            ring.setColor(KNOB);
+            band.setColor(BUTTON);
+            words.setColor(BUTTON_TEXT);
+            words.setTextAlign(Paint.Align.CENTER);
+            words.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11,
+                context.getResources().getDisplayMetrics()));
+            setClickable(true);
+            setFocusable(true);
+        }
+
+        void setThumb(Bitmap b) {
+            thumb = b;
+            invalidate();
+        }
+
+        void setChosen(boolean on) {
+            if (on == chosen) return;
+            chosen = on;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            int w = getWidth(), h = getHeight();
+            float d = getResources().getDisplayMetrics().density;
+            float r = 8 * d;
+            box.set(0, 0, w, h);
+            clip.reset();
+            clip.addRoundRect(box, r, r, Path.Direction.CW);
+            canvas.save();
+            canvas.clipPath(clip);
+            canvas.drawRect(0, 0, w, h, band);
+            if (thumb != null && w > 0 && h > 0) {
+                /* centre-crop: the middle of the picture, at the tile's shape */
+                int bw = thumb.getWidth(), bh = thumb.getHeight();
+                float s = Math.max((float) w / bw, (float) h / bh);
+                int sw = Math.round(w / s), sh = Math.round(h / s);
+                src.set((bw - sw) / 2, (bh - sh) / 2, (bw + sw) / 2, (bh + sh) / 2);
+                dst.set(0, 0, w, h);
+                canvas.drawBitmap(thumb, src, dst, image);
+            }
+            float bandH = 18 * d;
+            canvas.drawRect(0, h - bandH, w, h, band);
+            String fit = TextUtils.ellipsize(label, words, w - 8 * d, TextUtils.TruncateAt.END).toString();
+            canvas.drawText(fit, w / 2f, h - bandH / 2 + words.getTextSize() * 0.36f, words);
+            canvas.restore();
+            float sw = (chosen ? 3 : 1) * d;
+            ring.setStrokeWidth(sw);
+            ring.setAlpha(chosen ? 255 : 90);
+            box.inset(sw / 2, sw / 2);
             canvas.drawRoundRect(box, r, r, ring);
         }
     }

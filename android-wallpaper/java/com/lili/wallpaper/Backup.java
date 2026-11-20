@@ -52,13 +52,15 @@ import java.io.OutputStream;
  * Restoring: plan() says how, and restore() does it, off the main thread.
  *   home  a picture: setStream(FLAG_SYSTEM). This replaces the live Lili and
  *         leaves a lock-only picture where it is. A live wallpaper: the system
- *         picker for it (the settings screen opens that).
+ *         picker for it (the settings screen opens that). Nothing saved, but
+ *         "My wallpaper" kept (files/original.jpg, Original): that picture, the
+ *         same way (ORIGINAL). It is only read here, never moved or deleted.
  *   lock  a picture: setStream(FLAG_LOCK). "mirror" or a live one:
  *         clear(FLAG_LOCK), because a lock-only live wallpaper cannot be set.
  *         If the home screen is the live Lili, clearing would leave her on the
  *         lock screen. Then the saved home picture (which a mirroring lock
- *         screen showed before her) goes on the lock screen, and without one
- *         there is nothing to restore.
+ *         screen showed before her) goes on the lock screen, or else My
+ *         wallpaper, and without either there is nothing to restore.
  *   both  Home off while her live wallpaper covered the lock screen: the home
  *         screen as above, then restoreLockAfterHome().
  * The backups are kept after a restore. The next turn-on replaces them.
@@ -75,7 +77,7 @@ final class Backup {
     private static final String[] RESULT = { "skipped", "saved", "failed", "denied" };
 
     /* how a screen is put back */
-    static final int NONE = 0, PICTURE = 1, HOME_PICTURE = 2, CLEAR = 3, LIVE_PICKER = 4;
+    static final int NONE = 0, PICTURE = 1, HOME_PICTURE = 2, CLEAR = 3, LIVE_PICKER = 4, ORIGINAL = 5;
 
     static final String HOME_FILE = "backup_home", LOCK_FILE = "backup_lock";
     static final String STATIC = "static", MIRROR = "mirror", LIVE = "live:";
@@ -126,8 +128,9 @@ final class Backup {
                 keep(app, Prefs.BK_HOME, LIVE + c.flattenToString(), HOME_FILE);
                 return SAVED;
             }
-            boolean ok = Build.VERSION.SDK_INT >= 24 && copyFile(app, wm, WallpaperManager.FLAG_SYSTEM, HOME_FILE);
-            if (!ok) ok = copyDrawable(app, wm, HOME_FILE);
+            File dst = new File(app.getFilesDir(), HOME_FILE);
+            boolean ok = Build.VERSION.SDK_INT >= 24 && copyFile(wm, WallpaperManager.FLAG_SYSTEM, dst);
+            if (!ok) ok = copyDrawable(wm, dst);
             if (!ok) return FAILED;
             keep(app, Prefs.BK_HOME, STATIC, null);
             return SAVED;
@@ -161,7 +164,7 @@ final class Backup {
                 }
             }
             /* no lock-specific file means the lock screen shows the home wallpaper */
-            if (copyFile(app, wm, WallpaperManager.FLAG_LOCK, LOCK_FILE)) {
+            if (copyFile(wm, WallpaperManager.FLAG_LOCK, new File(app.getFilesDir(), LOCK_FILE))) {
                 keep(app, Prefs.BK_LOCK, STATIC, null);
             } else {
                 if (homeIsOurs(app, wm)) return SKIPPED;
@@ -207,13 +210,33 @@ final class Backup {
         Log.i(TAG, "[BACKUP] " + what + " -> home '" + home(p) + "', lock '" + lock(p) + "'");
     }
 
+    /**
+     * The home screen's picture as it is now, into `dst` (Original keeps it as
+     * My wallpaper): the wallpaper file (API 24+), else getDrawable() as PNG -
+     * the system default when none was set. False if there is neither.
+     * SecurityException passes up: API 27-32 without READ_EXTERNAL_STORAGE, 33+
+     * without All files access. Off the main thread.
+     */
+    static boolean readHome(Context context, File dst) throws IOException {
+        WallpaperManager wm = WallpaperManager.getInstance(context.getApplicationContext());
+        if (Build.VERSION.SDK_INT >= 24 && copyFile(wm, WallpaperManager.FLAG_SYSTEM, dst)) return true;
+        return copyDrawable(wm, dst);
+    }
+
+    /** The saved home picture (from before Lili took the screen), or null. */
+    static File homePicture(Context context) {
+        Context app = context.getApplicationContext();
+        File f = new File(app.getFilesDir(), HOME_FILE);
+        return STATIC.equals(home(Prefs.of(app))) && f.isFile() ? f : null;
+    }
+
     /** API 24+. False if there is no file for that screen. SecurityException passes up. */
-    private static boolean copyFile(Context app, WallpaperManager wm, int which, String name) throws IOException {
+    private static boolean copyFile(WallpaperManager wm, int which, File dst) throws IOException {
         ParcelFileDescriptor pfd = wm.getWallpaperFile(which);
         if (pfd == null) return false;
         InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(pfd);
         try {
-            write(app, name, in);
+            write(dst, in);
         } finally {
             close(in);
         }
@@ -221,7 +244,7 @@ final class Backup {
     }
 
     /** The home wallpaper as a Drawable (the system default if none was set), saved as PNG. */
-    private static boolean copyDrawable(Context app, WallpaperManager wm, String name) throws IOException {
+    private static boolean copyDrawable(WallpaperManager wm, File dst) throws IOException {
         Drawable d = wm.getDrawable();
         if (d == null) return false;
         Bitmap bmp = null;
@@ -235,8 +258,7 @@ final class Backup {
             d.setBounds(0, 0, w, h);
             d.draw(new Canvas(bmp));
         }
-        File dir = app.getFilesDir();
-        File tmp = new File(dir, name + ".tmp");
+        File tmp = new File(dst.getPath() + ".tmp");
         OutputStream os = new FileOutputStream(tmp);
         boolean ok;
         try {
@@ -246,13 +268,12 @@ final class Backup {
             if (own) bmp.recycle();
         }
         if (!ok) { tmp.delete(); throw new IOException("could not encode the wallpaper"); }
-        rename(tmp, new File(dir, name));
+        rename(tmp, dst);
         return true;
     }
 
-    private static void write(Context app, String name, InputStream in) throws IOException {
-        File dir = app.getFilesDir();
-        File tmp = new File(dir, name + ".tmp");
+    private static void write(File dst, InputStream in) throws IOException {
+        File tmp = new File(dst.getPath() + ".tmp");
         OutputStream os = new FileOutputStream(tmp);
         long total = 0;
         boolean done = false;
@@ -266,7 +287,7 @@ final class Backup {
             if (!done) tmp.delete();
         }
         if (total == 0) { tmp.delete(); throw new IOException("the wallpaper file is empty"); }
-        rename(tmp, new File(dir, name));
+        rename(tmp, dst);
     }
 
     private static void rename(File tmp, File dst) throws IOException {
@@ -277,19 +298,23 @@ final class Backup {
 
     /* ---- restoring ---- */
 
-    /** How the home screen would be put back: PICTURE, LIVE_PICKER or NONE. Cheap: main thread is fine. */
+    /**
+     * How the home screen would be put back: PICTURE, LIVE_PICKER, ORIGINAL (no
+     * backup, but My wallpaper is kept) or NONE. Cheap: main thread is fine.
+     */
     static int homePlan(Context context) {
         Context app = context.getApplicationContext();
         String saved = home(Prefs.of(app));
         if (STATIC.equals(saved) && new File(app.getFilesDir(), HOME_FILE).isFile()) return PICTURE;
         if (component(saved) != null) return LIVE_PICKER;
+        if (Original.have(app)) return ORIGINAL;
         return NONE;
     }
 
     /**
-     * How the lock screen would be put back: PICTURE, HOME_PICTURE, CLEAR or
-     * NONE. homeOurs: the home screen is the live Lili, so the lock screen must
-     * get a wallpaper of its own, or she would still be on it.
+     * How the lock screen would be put back: PICTURE, HOME_PICTURE, ORIGINAL,
+     * CLEAR or NONE. homeOurs: the home screen is the live Lili, so the lock
+     * screen must get a wallpaper of its own, or she would still be on it.
      */
     static int lockPlan(Context context, boolean homeOurs) {
         Context app = context.getApplicationContext();
@@ -297,7 +322,8 @@ final class Backup {
         if (STATIC.equals(saved) && new File(app.getFilesDir(), LOCK_FILE).isFile()) return PICTURE;
         if (MIRROR.equals(saved) || component(saved) != null) {
             if (!homeOurs) return CLEAR;
-            return homePlan(app) == PICTURE ? HOME_PICTURE : NONE;
+            int home = homePlan(app);
+            return home == PICTURE ? HOME_PICTURE : home == ORIGINAL ? ORIGINAL : NONE;
         }
         return NONE;
     }
@@ -313,6 +339,10 @@ final class Backup {
             case HOME_PICTURE:
                 if (!lock) throw new IOException("the home picture is restored with PICTURE");
                 setPicture(app, new File(dir, HOME_FILE), true);
+                break;
+            case ORIGINAL:
+                /* My wallpaper: only read */
+                setPicture(app, Original.file(app), lock);
                 break;
             case CLEAR:
                 if (!lock) throw new IOException("only the lock screen is cleared to restore it");
