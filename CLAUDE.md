@@ -68,3 +68,22 @@ Key rules from ARCHITECTURE.md that are easy to break:
 **New animations** go in `src/cat/scenes.js` as data (`Scenes.add(id, {tags, when, weight, beats, perDay?})`), not in `episodes.js`. `tools/studio.html` (built to `studio.built.html`) previews them. Run `check-plan.js` afterwards to see where the scene lands in the day.
 
 **Android host** (`android/`): two framework-only Java files, no AndroidX. It loads `file:///android_asset/informer.html` and needs `setAllowUniversalAccessFromFileURLs(true)`, or every XHR is blocked as a null-origin CORS failure. The JS bridge is `window.PhoneForecast`, feature-detected in `host.js`, so the same page also runs in a plain browser tab. Text files are LF except `*.ps1` (CRLF), as set in `.gitattributes`.
+
+## Screen saver variant (branch `screensaver`)
+
+A second app, **Lili Screensaver** (`com.lili.saver`): an Android `DreamService` showing a clock and the cat, with no weather, no network, no key and no permissions. The design and the reasons behind it are in `docs/SCREENSAVER.md`, and the release-notes draft is `docs/SCREENSAVER-RELEASE.md`.
+
+```
+node tools/build-saver.js [--debug]          # saver.html + android-saver/assets/saver.html
+node tools/check-saver.js                    # groups A-F: sky, shuffle, Plan stand-in, contract, built files, whole page
+powershell -ExecutionPolicy Bypass -File tools/build-saver-apk.ps1 [-Install] [-Overlay] [-Release]
+adb shell am start -n com.lili.saver/.PreviewActivity [-e ep <episode_id>]
+```
+
+- **Edit nothing shared.** No file under `src/`, `android/` or `tools/` that exists on `main` is edited or deleted on this branch, and neither is `README.md`. Everything the saver needs is additive: `src/saver/`, `src/saver.base.html`, `android-saver/`, `tools/saver-modules.js`, `tools/build-saver.js`, `tools/build-saver-apk.ps1`, `tools/check-saver.js`. That is what lets `main` keep merging in with no conflicts.
+- The saver's module list is derived from `MODULES` in `tools/build.js` (with `cat/plan.js` replaced by `src/saver/sky.js`, `shuffle.js`, `plan-random.js`). Its `cat_*`/`app_*` config and `#cat_` CSS are extracted from `src/informer.base.html` at build time. A new `scenes-*.js` on `main` is bundled automatically.
+- `cat.js` is driven only through what it already exposes: a stand-in `Plan`, a synthetic payload on Bus topic `weather` (`Sky`), `Cat.play(id)`, and in-place mutation of `cat_quiet_from/to` after the first animation.
+- `build-saver.js` never reads `.local/config.json`, and it fails (exit 1, nothing written) when an expected marker, CSS rule or SVG attribute is missing, or when the page would mention the forecast API.
+- The application id is the single variable `$AppId` in `tools/build-saver-apk.ps1` (passed to `aapt2 link --rename-manifest-package`). The Java package stays `com.lili.saver`. The version is `android-saver/VERSION`. `-Release` needs `.local/release.keystore` plus `LILI_KS_PASS`/`LILI_KEY_PASS` (and optionally `LILI_KEY_ALIAS`). It never creates a keystore.
+
+**After every merge from `main`:** `node tools/check-scenes.js && node tools/check-wardrobe.js && node tools/check-saver.js`, then `node tools/build-saver.js`. A failure in `check-saver` groups D, E or F means `main` changed something the saver leans on. Fix it in `src/saver/`, not in the shared file.

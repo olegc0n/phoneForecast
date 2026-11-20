@@ -1,0 +1,97 @@
+<!-- Lili, the screen saver: a clock and the cat, and nothing else.
+     Built by tools/build-saver.js into saver.html. The cat's config, CSS,
+     artwork and scripts are injected from the shared sources at the four
+     INJECT markers; only what is below them in each block belongs to the saver.
+     No doctype, like informer.base.html: every prop was tuned in quirks mode. -->
+
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+<!--INJECT:CAT_CONFIG-->
+</script>
+<script>
+/* ---------------- the saver's own config ----------------
+   Re-declared after the cat's block above, so these win. One per line,
+   unindented: tools/check-saver.js reads them the way the build does. */
+var cat_quiet_from = '';      //owned by Saver at run time: set after the first animation
+var cat_quiet_to   = '';
+var cat_test       = false;
+var cat_plan_demo  = false;
+var saver_sleep_from = '23:00';  //after one animation she sleeps until saver_sleep_to; '' = never
+var saver_sleep_to   = '07:00';
+var saver_gap_min    = 45;       //sec of idle life between animations
+var saver_gap_max    = 150;
+var saver_sky_every  = 5;        //animations per invented sky
+var saver_hemisphere = 'auto';   //'auto' | 'north' | 'south' | 'none'
+</script>
+<style>
+<!--INJECT:CAT_CSS-->
+</style>
+<style>
+/* ---------------- the saver's layout ----------------
+   THE STAGE IS A 9:16 BOX, the largest that fits. Props are placed with `top`
+   in percent of the stage height but sized in percent of its width, and the
+   informer's holder is 44vw by 57.6vw: every scene was composed for a 9:16
+   screen. On the G4 the box is the whole screen, so nothing changes there; on a
+   20:9 phone or in landscape the scenes keep their proportions instead of
+   floating. Lili is not made bigger, and nothing goes above the 63% line. */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+body { user-select: none; -webkit-user-select: none; }
+#cat_holder { width: 44%; height: 32.4%; }                  /* of the 9:16 stage */
+
+/* taller than 9:16: the stage is the full width, anchored to the bottom */
+#cat_stage, #cat_stage_back { left: 0; top: auto; bottom: 0; width: 100vw; height: 177.78vw; }
+#sv_clock {
+	position: fixed;
+	z-index: 2;                   /* back scenery 1, clock 2, stage 3 - as in the informer */
+	left: 0;
+	top: 0;
+	width: 100vw;
+	height: calc(100vh - 65.78vw);  /* everything above the stage's 63% line */
+	font-size: 30vw;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	color: #d8d8d8;
+	font-family: Roboto, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+	font-weight: 300;
+}
+#sv_time {
+	line-height: 1;
+	white-space: nowrap;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+}
+/* she is asleep: the clock steps back too */
+#sv_clock.sleeping { opacity: 0.35; }
+
+/* wider than 9:16: the stage is the full height, centred */
+@media (min-aspect-ratio: 9/16) {
+	#cat_stage, #cat_stage_back { width: 56.25vh; height: 100vh; left: calc(50vw - 28.125vh); }
+	#sv_clock { height: 63vh; font-size: 16.9vh; }
+}
+/* landscape: the stage on the right, the clock in the space to its left */
+@media (min-aspect-ratio: 1/1) {
+	#cat_stage, #cat_stage_back { left: auto; right: 3vw; }
+	#sv_clock {
+		width: calc(100vw - 56.25vh - 3vw);
+		height: 100vh;
+		font-size: calc((100vw - 56.25vh) * 0.3);
+	}
+}
+</style>
+</head>
+<body>
+<div id="sv_clock"><div id="sv_time"></div></div>
+<div id="cat_stage_back"><div id="cat_props_back"></div></div>
+<div id="cat_stage">
+	<div id="cat_holder"><!--INJECT:CAT_SVG--></div>
+	<div id="cat_props"></div>
+	<div id="cat_hit"></div>
+</div>
+
+<!--INJECT:JS-->
+</body>
+</html>

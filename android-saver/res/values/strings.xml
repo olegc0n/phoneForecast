@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lili</string>
+    <string name="dream_name">Lili</string>
+
+    <string name="setup_intro">A screen saver with a cat in it. When the phone is charging and goes idle, Lili and a clock appear instead of a black screen.</string>
+    <string name="step1">Open the screen saver settings with the button below.</string>
+    <string name="step2">Choose Lili.</string>
+    <string name="step3">Set “When to start” to “While charging”. Many phones start out on “While docked”, and then she never appears.</string>
+    <string name="open_settings">Open screen saver settings</string>
+    <string name="hint_missing">Can’t find it? Search Settings for “screen saver” or “Daydream”. If your phone does not have it, use Preview: Lili stays on screen while it is open.</string>
+    <string name="preview">Preview</string>
+    <string name="setup_note">She does not appear on the lock screen itself, on the always-on display, or on battery. A touch sends her away. Between 23:00 and 07:00 she plays once, then sleeps and the screen dims.</string>
+    <string name="no_webview">Android System WebView is not available right now. Try again in a minute.</string>
+</resources>
