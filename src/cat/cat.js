@@ -496,7 +496,7 @@ var Cat = (function () {
 	}
 
 	/* Print today's schedule. Reachable from the test menu and from
-	 *   adb shell am start -n com.lili.informer/.MainActivity -e plan 1
+	 *   adb shell am start -n com.lili.weather/.MainActivity -e plan 1
 	 * which is much easier than squinting at an overlay.                       */
 	function dumpPlan() {
 		var lines = Plan.lines();
@@ -533,15 +533,15 @@ var Cat = (function () {
 		var dead = st.source === 'stale-fact';
 		if (!dead && st.coverH > COVER_WARN) { el.style.display = 'none'; return; }
 
+		/* the words are the forecast's (src/core/i18n.js), in the phone's language */
 		var age = st.ageMin >= 60
-			? Math.floor(st.ageMin / 60) + ' ч ' + (st.ageMin % 60) + ' мин'
-			: st.ageMin + ' мин';
+			? I18n.t('age_hm', Math.floor(st.ageMin / 60), st.ageMin % 60)
+			: I18n.t('age_m', st.ageMin);
 
 		el.innerHTML = (dead
-				? 'прогноз закончился &mdash; данные от ' +
-				  pad(st.at.getHours()) + ':' + pad(st.at.getMinutes())
-				: 'прогноз кончится через ' + st.coverH + ' ч') +
-			'<br>последний ответ ' + age + ' назад' +
+				? I18n.t('stale_dead', pad(st.at.getHours()) + ':' + pad(st.at.getMinutes()))
+				: I18n.t('stale_ends', st.coverH)) +
+			'<br>' + I18n.t('stale_last', age) +
 			(st.error ? ' &middot; ' + st.error : '');
 		el.style.display = '';
 	}

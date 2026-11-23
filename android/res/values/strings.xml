@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- English, the default. Russian is in values-ru. The page's own words are in
+     src/core/i18n.js; these are the few the Android side shows. -->
 <resources>
-    <string name="app_name">Погода</string>
+    <string name="app_name">Lili Weather</string>
+    <!-- shown when location was refused before and Use my location is tapped again -->
+    <string name="location_rationale">Lili Weather uses your approximate location only to find your city for the forecast. Only rounded coordinates are sent to the weather service.</string>
 </resources>

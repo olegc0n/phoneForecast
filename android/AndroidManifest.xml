@@ -1,12 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Lili Weather. The application id is com.lili.weather (tools/build-apk.ps1
+     checks the two agree), so it installs beside the keyed build of main,
+     com.lili.informer. The version is android/VERSION, put in by aapt2 at
+     build time; there is none here. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.lili.informer"
-    android:versionCode="1"
-    android:versionName="1.0">
+    package="com.lili.weather">
 
-    <!-- the forecast API, and coming back up by itself after a power cut -->
+    <!-- the forecast (Open-Meteo, MET Norway as the fallback) and the city search -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- so the page knows it is offline and asks for nothing -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- coming back up by itself after a power cut -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- "use my location" only, asked when it is tapped -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- location is optional: a city can always be searched for -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
 
     <application
         android:label="@string/app_name"

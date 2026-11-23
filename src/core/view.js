@@ -64,9 +64,27 @@ var View = (function () {
 		}
 	}
 
+	/* Hide every field but `keep`, at once, and forget what it said - a new
+	 * place's weather must not appear under the old place's numbers, and if the
+	 * first call for it fails the screen should be empty rather than wrong.  */
+	function forget(keep) {
+		for (var id in value) {
+			if (!value.hasOwnProperty(id) || (keep && keep.indexOf(id) !== -1)) continue;
+			var slot = value[id];
+			if (slot.type === 'class' && slot.data) removeClass(byId(id), slot.data);
+			slot.data = null;
+			slot.update = 0;
+			if (slot.visible === 1) {
+				slot.visible = 0;
+				removeClassAll('.sector_' + id, 'visible');
+			}
+		}
+	}
+
 	return {
 		register: register,
 		update: update,
+		forget: forget,
 		has: function (id) { return value.hasOwnProperty(id); },
 		data: function (id) { return value[id] ? value[id].data : null; }
 	};

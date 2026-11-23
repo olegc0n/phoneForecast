@@ -1,4 +1,4 @@
-package com.lili.informer;
+package com.lili.weather;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

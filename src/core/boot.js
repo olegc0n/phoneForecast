@@ -28,20 +28,24 @@ on(window, 'load', function () {
 		LOG('visibilitychange hidden=' + document.hidden);
 	});
 	/* ---- forecast ---- */
+	/* the words of the static markup, in the phone's language (i18n.js) */
+	I18n.paint(document);
+	LOG('language ' + I18n.lang() + ' (from ' + I18n.how() + ')');
 	View.register();
 	on(document.body, 'click', function () { fullscreen(); });
 
-	/* Before anything reads `api`, `api_url` or the quiet hours: whatever was set
-	 * on the phone wins over what the build shipped. */
+	/* Before anything reads the place or the quiet hours: whatever was set on
+	 * the phone wins over what the build shipped (which is no place at all). */
 	Settings.load();
-	LOG('settings applied: key=...' + String(api).slice(-6) + ' url=' + api_url +
+	LOG('settings applied: place=' + (place_lat === null ? '(none - asking for nothing)' : place_name) +
 		' sleep=' + cat_quiet_from + '-' + cat_quiet_to);
 
 	var date = new Date();
 	var now = Date.now();
 
 	/* paint the cached response before the network is even attempted, so a
-	 * reload or a power-cut restart shows the weather immediately             */
+	 * reload or a power-cut restart shows the weather immediately; with no
+	 * place, show the prompt to choose one instead                            */
 	Weather.restore(date, now);
 	Clock.start();
 

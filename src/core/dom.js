@@ -90,6 +90,39 @@ function getJSON(url, headers, timeoutMs, onOk, onFail) {
 	try { xhr.send(null); } catch (e) { fail('send'); }
 }
 
+/* httpGet - the same request, for a caller that needs more than "2xx JSON or
+ * not": the status (MET Norway answers 304 to If-Modified-Since) and the
+ * response headers (its Expires and Last-Modified). cb(err, status, text,
+ * header) - err is 'timeout' | 'network' | 'open' | 'send' when no response
+ * arrived at all, else null with whatever status the server sent.            */
+function httpGet(url, headers, timeoutMs, cb) {
+	var xhr = new XMLHttpRequest();
+	var done = false;
+	function header(name) {
+		try { return xhr.getResponseHeader(name) || ''; } catch (e) { return ''; }
+	}
+	function finish(err, status) {
+		if (done) return;
+		done = true;
+		var text = '';
+		if (!err) { try { text = xhr.responseText || ''; } catch (e) { text = ''; } }
+		cb(err, status || 0, text, header);
+	}
+
+	try { xhr.open('GET', url, true); } catch (e) { finish('open'); return; }
+	for (var h in headers) { try { xhr.setRequestHeader(h, headers[h]); } catch (e) {} }
+
+	xhr.timeout = timeoutMs;
+	xhr.ontimeout = function () { finish('timeout'); };
+	xhr.onerror   = function () { finish('network'); };
+	xhr.onreadystatechange = function () {
+		if (xhr.readyState !== 4 || done) return;
+		if (!xhr.status) finish('network');
+		else finish(null, xhr.status);
+	};
+	try { xhr.send(null); } catch (e) { finish('send'); }
+}
+
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
 /* Is the clock inside a HH:MM..HH:MM window? Wraps past midnight, so

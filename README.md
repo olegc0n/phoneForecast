@@ -1,46 +1,81 @@
-# Lili
+# Lili Weather
 
 A weather display for an old phone, with a cat living in it.
 
 The phone is a **Motorola Moto G4 Plus** on a desk, permanently on the charger
-with the screen never off. It shows a large clock, the date and the Yandex
-forecast — and Lili, who potters about in front of it, wears a cap when it is
-hot, works at a desk during working hours, has lunch, plays when it is snowing,
-and sleeps from eleven at night until ten in the morning.
+with the screen never off. It shows a large clock, the date and the forecast for
+a city you choose — and Lili, who potters about in front of it, wears a cap when
+it is hot, works at a desk during working hours, has lunch, plays when it is
+snowing, and sleeps from eleven at night until ten in the morning.
 
 Lili is modelled on a plush toy cat: white body, a ginger patch down the left of
 her face, ginger-rimmed ears, big amber eyes and a mint-green vest with a crystal
 button. The photograph she was drawn from is not in the repository.
 
+**This is the free-forecast version** (branch `free-forecast`, app id
+`com.lili.weather`, "Lili Weather"). The forecast comes from
+[Open-Meteo](https://open-meteo.com), with [MET Norway](https://api.met.no) as
+the fallback: no key, no account, nothing to configure before you build. It
+installs beside the keyed build on `main` (`com.lili.informer`), which it does
+not replace. **It speaks English and Russian**, chosen from the phone's language
+(see *Languages*).
+
 ---
 
-## Before you build: your own API key
+## No key: choose a city on the phone
 
-The forecast comes from the Yandex Weather API and the key that ships here is a
-placeholder, so out of the box the app runs with no weather at all - which it
-survives, but Lili cannot dress for a sky she cannot see.
+There is nothing secret in this build and nothing to set before building it. No
+place is built in either: on first run the screen shows the clock, the date and
+a short prompt to open the gear (top right) and choose a city, and Lili lives
+under no weather until you do. With no place the app asks the network for
+nothing at all.
 
-Get a key from **yandex.ru/dev/weather** (or the Weather service in
-`console.yandex.cloud`, depending on where your account lives), then either edit
-the top of `src/informer.base.html`, or - better - keep it out of the repository
-entirely in `.local/config.json`, which is gitignored and which the build reads
-if it is there:
+Behind the gear, under **CITY** (**ГОРОД**):
 
-```json
-{
-  "api": "your-key-here",
-  "lat": 53.9,
-  "lon": 27.56
-}
-```
+- **type a city and tap FIND** (**НАЙТИ**, or Enter). Up to eight places come back from
+  Open-Meteo's place search, each with its region and country. Tap one. It is
+  kept on the phone and its forecast is asked for at once.
+- **USE MY LOCATION** (**МОЁ МЕСТОПОЛОЖЕНИЕ**, in the APK only): Android asks for approximate location
+  the first time you tap it. The phone's own network location gives the place,
+  and Android's geocoder names it where the phone has one (otherwise it is
+  called by its coordinates). No Google services are needed. In a plain browser
+  tab this button is not offered; search instead.
 
-`node tools/build.js` says which of the two it used, so you can tell at a glance
-whether a build has a real key in it.
+Under the city, a line says what the weather is there now (with the wind's
+compass point and the condition in words, which the shelf screen shows only as
+icons), and another when the forecast was last updated, from which source, and
+how many requests the app has made today.
 
-**Watch the allowance.** The free plan is thirty requests a day, and this app is
-built around that number - see *The API quota* below before changing `timeout` or
-`retry_steps`. `tools/yandex-check.html` will tell you whether a key works, and
-costs two requests to ask.
+The build never reads `.local/config.json` (or anything else in `.local/`), so no
+developer key or coordinates can reach a public build, and `tools/build.js`
+refuses to write a page that mentions `yandex` or holds a 36-character key-shaped
+string.
+
+---
+
+## Languages
+
+English and Russian, picked from the phone's language: **Russian** when it is
+Russian, Belarusian, Ukrainian or Kazakh, **English** for everything else. The APK
+asks Android (`PhoneForecast.lang()`, the phone's `Locale`); a browser tab asks
+`navigator.language`. To force one, set `var app_lang = 'en'` (or `'ru'`) in the
+config block, or open the page with `#lang=en` / `#lang=ru` in a browser tab.
+
+Every word is in one table, `src/core/i18n.js`, and no other page file has a
+Cyrillic letter in it (`check-i18n.js` checks). The two differ in more than words:
+
+| | English | Russian |
+|---|---|---|
+| date under the clock | `Mon 23 Nov` | `пн, 23.11.26` |
+| pressure | hPa, as the sources give it | mm Hg (`мм рс`) |
+| wind | m/s, `NW` | м/с, `СЗ` |
+| forecast columns | morning, afternoon, evening, night | утром, днём, вечером, ночью |
+
+The credit is the source's own name in both. City search asks Open-Meteo in the
+screen's language, except that a name typed in Cyrillic always gets Russian
+results. The animation list behind the gear is a developer's tool and shows the
+scenes' own English names in both languages. The Android side has `res/values`
+(English) and `res/values-ru` for its label and its location rationale.
 
 ---
 
@@ -55,7 +90,9 @@ The first command produces one self-contained `informer.html`. The second wraps
 it in an APK and installs it on whatever device `adb` can see.
 
 To put it on the phone without a cable, open `informer.html` in Chrome on the
-phone — everything is inlined, so there is nothing else to copy.
+phone — everything is inlined, so there is nothing else to copy. In a tab the
+forecast is Open-Meteo only (MET Norway needs the app's User-Agent, which a tab
+cannot set) and there is no "use my location".
 
 ---
 
@@ -65,7 +102,7 @@ phone — everything is inlined, so there is nothing else to copy.
 |---|---|---|
 | **Node** | any recent version | runs `tools/build.js`; no packages, no `npm install` |
 | **JDK** | 17 or newer | `javac` for the two Java files |
-| **Android SDK** | build-tools + one platform | `aapt2`, `d8`, `zipalign`, `apksigner` |
+| **Android SDK** | build-tools + one platform (API 23+) | `aapt2`, `d8`, `zipalign`, `apksigner` |
 | **PowerShell** | 5 or 7 | `tools/build-apk.ps1` |
 
 Set `ANDROID_HOME` if the SDK is not at `%LOCALAPPDATA%\Android\Sdk`. There is
@@ -80,7 +117,7 @@ project. Min SDK 21, target 34; the G4 runs Android 8.
 ### The page
 
 ```
-node tools/build.js [--debug] [--test] [--random] [--plandemo] [--nocat] [--noalive]
+node tools/build.js [--debug] [--test] [--plandemo] [--nocat] [--noalive]
 ```
 
 Every module in `src/` is inlined in dependency order into a single file. The
@@ -89,32 +126,54 @@ phone only ever receives one `.html`.
 | flag | what it does |
 |---|---|
 | `--debug` | on-screen overlay: fps, tier, faults, plan, position, spring values |
-| `--test` | skip the chooser and go straight to the animation test menu |
-| `--random` | let activities fire on their own (on by default in normal builds) |
+| `--test` | open the animation test menu at launch |
 | `--plandemo` | replace the day with **three animations in the next five minutes** |
 | `--nocat` | forecast only — for measuring what the cat costs |
 | `--noalive` | cat on screen but the procedural layer stopped — also for measuring |
 
-Outputs: `informer.html`, `android/assets/informer.html`, and the dev harnesses
-`tools/*.built.html`. All of these are generated and none are in git.
+Outputs: `informer.html`, `android/assets/informer.html`, and the dev harness
+`tools/studio.built.html`. All of these are generated and none are in git.
 
 ### The APK
 
 ```
 powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1 `
-  [-Install] [-Overlay] [-Test] [-Random] [-PlanDemo] [-NoCat] [-NoAlive]
+  [-Install] [-Overlay] [-Test] [-PlanDemo] [-NoCat] [-NoAlive]
+powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1 -Release
 ```
 
 `-Overlay` is `--debug` (PowerShell reserves `-Debug`). The script runs
-`tools/build.js` first, so you never build the page separately.
+`tools/build.js` first, so you never build the page separately, and stops if it
+fails.
 
-Output: `android/build/phone-forecast.apk`.
+Output: `android/build/lili-weather-<version>-debug.apk`, or
+`android/build/lili-weather-<version>.apk` with `-Release`. The version is
+`android/VERSION` (major.minor.patch), injected by aapt2 as `versionName` and as
+`versionCode` = major·10000 + minor·100 + patch; the manifest carries none. Each
+build prints the APK's SHA-256. Only `android/build/tmp` is cleaned, so a debug
+build does not delete the release built before it. Debug builds are debuggable
+(for `adb shell run-as`); release builds are not.
 
-**About the keystore.** `android/keystore/debug.keystore` is not in git — it is a
-private key. The script recreates it if missing, but a new keystore means a new
-signature, so `adb install -r` will refuse to update an app signed by the old
-one and you will have to uninstall first. That loses `localStorage`: the weather
-cache and the day's plan, nothing else.
+**Release signing.** `-Release` signs with `.local/release.keystore` (gitignored,
+alias `lili` unless `LILI_KEY_ALIAS` says otherwise) — the same key that signs
+Lili Wallpaper. The passwords come from `LILI_KS_PASS` and `LILI_KEY_PASS` and
+are handed to apksigner by name, so they never appear on a command line. The
+script never creates a keystore: if anything is missing it stops before
+building and says what to set. It warns when the working tree has uncommitted
+changes, and prints the certificate when done.
+
+```powershell
+$env:LILI_KS_PASS  = Read-Host 'keystore password'
+$env:LILI_KEY_PASS = $env:LILI_KS_PASS
+powershell -ExecutionPolicy Bypass -File tools/build-apk.ps1 -Release
+```
+
+**About the debug keystore.** `android/keystore/debug.keystore` is not in git —
+it is a private key. The script recreates it if missing, but a new keystore
+means a new signature, so `adb install -r` will refuse to update an app signed
+by the old one and you will have to uninstall first. That loses `localStorage`:
+the chosen city, the weather cache and the day's plan. A debug and a release
+build cannot replace each other either.
 
 ---
 
@@ -123,9 +182,11 @@ cache and the day's plan, nothing else.
 Everything is at the top of `src/informer.base.html`, as plain globals:
 
 ```js
-var api  = 'xxxxxxxx-...';    // Yandex Weather API key
-var lat  = 53.9;  var lon = 27.56;
-var timeout = 3600;           // sec between forecast calls
+var place_name = '';  var place_lat = null;  var place_lon = null;   // set on the phone
+var app_lang      = '';                      // '' = the phone's language; 'en' | 'ru' to force
+var timeout       = 60 * 60;                 // sec between forecast calls
+var retry_steps   = [5 * 60, 15 * 60, 30 * 60];   // after a failure, then hourly again
+var calls_per_day = 48;                      // ceiling on requests per calendar day
 
 var cat_enabled       = true;
 var cat_name          = 'Lili';
@@ -139,11 +200,14 @@ var cat_work_weekdays = true;     // no desk on Saturday or Sunday
 var cat_lunch_from    = '13:00';  var cat_lunch_to = '14:00';
 var cat_birthday      = '11-07';  // 7 November
 
-var cat_start_menu    = true;   // ask "forecast or test animations" on launch
-var cat_start_timeout = 15;     // sec, then it goes to the forecast by itself
 var cat_fps           = 15;     // peak frame rate during an animation
 var cat_debug         = false;
 ```
+
+The place and the sleep hours are set behind the gear and kept in the phone's
+`localStorage` (`src/core/settings.js`); what is set there wins over the build.
+**RESET SLEEP HOURS** (**СБРОСИТЬ ЧАСЫ СНА**) puts the sleep hours back to the
+build's; it does not forget the city.
 
 `cat_build` is stamped by the build and should not be edited: a saved plan from
 a different build is discarded, so a new APK always replans the day instead of
@@ -156,13 +220,19 @@ inheriting a schedule written by different code.
 ```
 src/informer.base.html     markup, CSS, configuration, two INJECT markers
 src/core/
-  dom.js         $, byId, on, hhmm, inClockWindow - and nothing clever
-  bus.js         Bus (publish/subscribe) and Guard (the error firewall)
+  dom.js         $, byId, on, getJSON, httpGet, hhmm, inClockWindow - and nothing clever
   store.js       localStorage that cannot throw
+  settings.js    the place and the sleep hours, kept on the phone
   host.js        the bridge to the Android host, if there is one
+  i18n.js        every word on screen, English and Russian, and which one
+  places.js      city search (Open-Meteo geocoding) and "use my location"
+  bus.js         Bus (publish/subscribe) and Guard (the error firewall)
   view.js        the forecast DOM
-  weather.js     fetch, cache, retry, parse, publish
+  wxsource.js    Open-Meteo and MET Norway, turned into the shape the page reads;
+                 sunrise, sunset and the moon, computed
+  weather.js     when to ask, the cache, the hourly fallback, parse, publish
   clock.js       the minute tick, re-armed on the wall-clock boundary
+  settings-ui.js the gear and its dialog
   boot.js        startup order
 src/cat/
   cat.svg        the rig: ~36 named parts and eight garments
@@ -178,8 +248,8 @@ src/cat/
   episodes.js    the catalogue, and the picker
   wardrobe.js    what she wears for the weather
   plan.js        the diary: a whole day, planned at midnight
-android/         AndroidManifest, two Java files, icon
-tools/           build, APK build, studio, schedule harness
+android/         AndroidManifest, two Java files, icon, VERSION
+tools/           build, APK build, studio, offline harnesses, fixtures/
 ```
 
 Two rules hold the design together:
@@ -191,6 +261,46 @@ switched off and the clock carries on exactly as it did before she existed.
 **Nothing covers the clock.** It is the reason the phone is on the desk. Props
 live below 63% of the stage height, and scenery sits in a layer behind the
 forecast text.
+
+---
+
+## Where the forecast comes from
+
+**Open-Meteo** answers every call it can: the current conditions (its 15-minute
+"current" data), and three days of hourly temperature, feels-like, humidity,
+weather code, wind (in m/s) and direction, sea-level pressure and precipitation,
+for the city's coordinates rounded to **2 decimals** (about 1 km).
+
+**MET Norway** (Locationforecast 2.0 compact) is asked only when Open-Meteo
+fails, and only in the APK: MET refuses a request whose User-Agent does not name
+the app and a contact, and an XHR cannot set one, so `MainActivity` appends
+`Lili-Weather/<version> (+https://github.com/olegc0n/phoneForecast)` to the
+WebView's User-Agent. It gets the coordinates at **4 decimals**, the app never
+asks it again before the `Expires` it sent for that place, and it sends
+`If-Modified-Since` with the `Last-Modified` MET gave, so an unchanged forecast
+costs a `304` and no body.
+
+**An adapter, not a new pipeline.** `src/core/wxsource.js` turns either response
+into the shape the display, the hourly fallback, the cache and the cat were
+written for — `fact`, and `forecasts[]` with `hours[]` and four `parts` a day —
+with exactly the fields they read, in their units: whole degrees, wind in m/s,
+humidity in %, pressure in **mm Hg** (hPa × 0.750062). Weather codes (WMO for
+Open-Meteo, symbol codes for MET) become the icon codes the stylesheet already
+draws (`skc_d`, `bkn_-ra_n`, `ovc_+sn`, `ovc_ts_ra`...), so the icons stay local
+and the cat reads the sky, the precipitation, its strength and thunder back out
+of the same code. Everything else is computed on the phone: **sunrise and
+sunset** (the NOAA solar algorithm, polar day and night included), **day and
+night** in the icons (the sun's height at the middle of each hour), and the
+**moon phase**. Today's low and high, and the hours they fall at, come from the
+hourly temperatures. Days and hours are the phone's, like the clock above them.
+
+The cache keeps the **raw response** and runs it through the adapter on every
+read, so a better adapter in a new build re-reads the old file.
+
+**The credit** is on the forecast screen: a small, dim "Open-Meteo.com" or "MET
+Norway" in the bottom-right corner, in the forecast's own layer — behind Lili,
+below the last row, nowhere near the clock — and it fades with the data it
+credits. The settings dialog has the full credits and licences.
 
 ---
 
@@ -242,7 +352,7 @@ bugs on its first run.
 On the phone:
 
 ```
-adb shell am start -n com.lili.informer/.MainActivity -e plan 1
+adb shell am start -n com.lili.weather/.MainActivity -e plan 1
 adb logcat -s Lili
 ```
 
@@ -254,22 +364,21 @@ are standing in front of the shelf rather than sitting at a desk.
 
 ## The test menu
 
-Choose *Тест анимаций* at launch, or build with `-Test` to skip the chooser.
+Open the gear and tap **TEST ANIMATIONS** (**ТЕСТ АНИМАЦИЙ**), or build with
+`-Test` to open it at launch.
 
 - every animation, tap to play
 - **TODAY'S SCHEDULE** — times and names, done ones dimmed, missed struck through
 - **SLEEP / WAKE UP** — the real quiet-hours path, because otherwise you cannot
   see her sleep before eleven at night
-There is deliberately no weather check in the app: `tools/yandex-check.html` does
-that job from the browser, without a build.
 
-**Back** returns to the chooser from anywhere, abandoning whatever is playing. A
-press at the chooser closes the app.
+**Back** unwinds one layer at a time, abandoning whatever is playing; a press on
+the forecast closes the app.
 
 Play one animation directly:
 
 ```
-adb shell am start -n com.lili.informer/.MainActivity -e ep desk_work
+adb shell am start -n com.lili.weather/.MainActivity -e ep desk_work
 ```
 
 ---
@@ -327,7 +436,7 @@ software. The G4 has an Adreno 405 and a hardware-accelerated WebView, so these
 numbers do not predict the phone. Measure there:
 
 ```
-adb shell "cat /proc/$(adb shell pidof com.lili.informer)/stat"
+adb shell "cat /proc/$(adb shell pidof com.lili.weather)/stat"
 ```
 
 fields 14 and 15 are user and system jiffies; the difference over 30 seconds,
@@ -338,148 +447,78 @@ replacing the gradients and clip paths in `cat.svg` with flat fills.
 
 ---
 
-## The forecast file, and why a dead API no longer shows the wrong weather
+## The forecast file, and why a dead network does not show the wrong weather
 
-The response carries an **hourly forecast** — 24 entries for today and, on this
-plan, another 24 for tomorrow. Until recently none of it was used for the current
-conditions: everything came from `fact`, a single observation taken at the moment
-of the call.
+The forecast carries **hourly** data — three days of it from Open-Meteo, about
+ten from MET. A single "now" reading (Open-Meteo's current data, or MET's entry
+for the hour of the call) is only right for a while; an hour after a failure it
+is an old moment, and after a day of failures it is yesterday morning.
 
-That is why a failed API meant a *wrong* screen rather than an old one. An hour
-after a failure the display showed an old moment; after a day of failures it
-showed yesterday morning — **+14 and cloudy while it was +19 and raining.**
+So:
 
-Now:
-
-- the whole raw response is stored, with the time it was written
-- **while the file is younger than `timeout`**, the display uses `fact` — an
-  observation beats a forecast while it is current
+- the whole raw response is stored, with the time it was written and the place
+  it is for
+- **while the file is younger than `timeout`**, the display uses that "now"
+  reading
 - **once it is older**, the app reads the hourly entry **for the actual current
-  hour**, falling back to `fact` for any field an hourly record does not carry
+  hour**, falling back to the "now" reading for any field an hourly record does
+  not carry
 - the minute tick calls `Weather.rehour()`, which redraws when the hour turns
-  over — so with no network at all the screen still follows the day
+  over — so with no network at all the screen still follows the day, and today's
+  low, high and the two forecast columns are found by date, not by position in
+  the file
 
-The practical effect: one successful call in the morning keeps the screen and
-Lili correct for up to 48 hours, hour by hour, with no further calls at all.
+The practical effect: one successful call keeps the screen and Lili correct for
+two days and more, hour by hour, with no further calls at all.
 
 `Weather.status()` reports which source is in use — `fact`, `hour`, or
-`stale-fact` when the hourly list has run out and only the old observation is
-left. That last one is the real failure, and it is what the on-screen warning
-watches for: warning about the file's *age* would be crying wolf on a screen
-that is correct.
+`stale-fact` when the hourly list has run out and only the old reading is left.
+That last one is the real failure, and it is what the on-screen warning watches
+for: warning about the file's *age* would be crying wolf on a screen that is
+correct.
 
-### Verifying it
-
-```
-node tools/check-weather.js               against a synthetic 48 h response
-node tools/check-weather.js real.json     against a real captured response
-```
-
-This loads the real `weather.js` and only fakes the browser. It exists because
-the allowance is 30 requests a day: logic that decides what the screen shows
-cannot be developed by calling the API and looking. Save the JSON that
-`tools/yandex-check.html` prints and run it through this to confirm the real
-field names.
-
-The synthetic response makes hour N of today N degrees, so picking the wrong
-hour is visible rather than plausible.
+A forecast is kept for one place. Choosing another one clears the screen and the
+file, and asks for the new place at once.
 
 ---
 
-## The API quota, and how often it calls
+## How often it asks
 
-**The free Yandex plan used here is 30 requests a day.** That number is small
-enough to change the design, so it is worth knowing exactly what spends it.
+Open-Meteo is free for non-commercial use up to 10,000 calls a day; this app
+makes about 24. Every rule, each tested by `tools/check-weather.js`:
 
-### Every trigger
+| rule | |
+|---|---|
+| no place | **no request, ever** |
+| healthy | one call an hour (`timeout`) |
+| a launch or a restart | **free**: the stored file's own time is the schedule |
+| a failure | again in 5, 15 and 30 minutes (`retry_steps`), then hourly; the backoff is stored, so a restart does not cut it short |
+| offline (`navigator.onLine`) | nothing is tried, and no backoff builds up |
+| a new place | at once, whatever the backoff says |
+| MET Norway | only after Open-Meteo failed, only in the APK, never before its `Expires` for that place, with `If-Modified-Since` |
+| ceiling | **48 requests per calendar day** (`calls_per_day`), counting Open-Meteo, MET and MET's 304s; at the ceiling nothing more is asked until midnight |
+| a device reboot | 1 (the app auto-starts), only if the file is older than an hour |
 
-| trigger | cost | where |
-|---|---|---|
-| the minute tick, once `timeout` has passed | 1 | `clock.js` -> `Weather.due()` |
-| a failed call | up to 3 retries | `retry_steps` |
-| a device reboot | 1 (the app auto-starts, if the file is stale) | `BootReceiver` |
-
-**A launch is free.** `restore()` reads the stored file, paints it, and sets
-`lastcall` to the file's own timestamp — so if it was written less than `timeout`
-ago there is nothing to ask for and `due()` says no. This used to clear
-`lastcall`, which meant every launch called immediately however fresh the file
-was: fine on a shelf where the app starts once a month, expensive while test
-builds go on and off the phone every few minutes. That is what spent an
-allowance of thirty on 2026-08-25 — the console read 32 by mid-afternoon and the
-API returned 403 for the rest of the day.
-
-### The arithmetic
-
-With `timeout = 60 * 60` and `retry_steps = [30, 120, 480]`:
-
-| situation | calls per day |
+| situation | requests per day |
 |---|---|
 | healthy, any number of restarts | **24** |
-| API failing (1 attempt + 3 retries per ~70 min cycle) | ~82 |
+| Open-Meteo down, in a browser tab | 27 |
+| Open-Meteo down, MET answering, in the APK | 48: one of each an hour, exactly the ceiling |
+| both sources down, in the APK | at most 48 (the ceiling) |
 
-One call an hour, 24 a day, whatever else happens — restarts and reinstalls no
-longer cost anything. The failing case is still expensive; see the note on the
-retry ladder below.
-
-### If you are seeing 403
-
-**Quotas reset daily, so an exhausted plan clears overnight.** Check again the
-next morning *before* doing anything else — if it works, it was the quota.
-
-Nothing on the wire tells you which it was. Yandex answers a bad key, a missing
-key and a spent quota with the same opaque reply, and sends no rate-limit
-headers:
+City searches are a different service, one per tap, and are not counted.
 
 ```
-HTTP/1.1 403 Forbidden
-X-Req-Id: ...rtc-balancer-cloudapi-weather-yandex-33-BAL
-{"message":"forbidden"}
+node tools/check-weather.js
+node tools/check-settings.js     # the place, the sleep hours, city search, no place = no request
+node tools/check-i18n.js         # both languages: detection, tables, formats, the rendered screen and dialog
 ```
 
-A deliberately wrong key and no key at all produce that byte-for-byte. The
-request count in the Yandex developer console is the only place the difference
-shows.
-
-### Living inside 30 a day
-
-```js
-var timeout     = 2 * 60 * 60;   // 12 calls/day instead of 24
-var retry_steps = [600];         // one retry at 10 min, not three
-```
-
-That is 12 a day, 24 in the worst case, leaving room for restarts. `expire` is
-12 h, so the screen never blanks between calls — a two-hour-old temperature is
-fine on a desk, and the wardrobe and the weather-dependent animations only need
-to know roughly what the sky is doing.
-
-The remaining lever is not calling on launch when the cache is younger than
-`timeout`, which makes reinstalling free.
-
-**Note on the retry ladder.** `retryIndex` resets on every hourly attempt, so a
-failing API costs four calls an hour rather than one. That reset exists so the
-app recovers promptly once a key is fixed, but at 30 requests a day it is the
-wrong trade — a single retry is enough.
-
----
-
-## Checking the API by hand
-
-`tools/yandex-check.html` — open it in a browser on the phone. No build step, no
-server; it runs three tests and gives a verdict. **It contains the API key, so
-do not share the file.** ⚠️ **Each run costs 2 requests** (tests 2 and 3), which
-matters at 30 a day — read test 2 and ignore test 3 unless test 2 is blocked.
-
-1. can the phone reach Yandex at all
-2. the real call, key in the `X-Yandex-Weather-Key` header
-3. the same call with the key as a query parameter
-
-You cannot do this from the address bar: the key travels as a **header**, and
-typing a URL cannot send one, so opening the API URL directly returns 403 whether
-the key is good or not.
-
-A page loaded from disk may also be refused by the browser rather than the
-server, which the page reports as *blocked by the browser* — inconclusive, not a
-failed key. In practice Chrome on Android has let the status through.
+`check-weather.js` loads the **real** `wxsource.js` and `weather.js`, fakes the clock, the storage
+and the network, and runs the adapter over the captured Open-Meteo and MET
+Norway responses in `tools/fixtures/` (Berlin, 20 November 2026) and over
+synthetic ones in which hour N is N degrees, so picking the wrong hour is visible
+rather than plausible. It never touches the network.
 
 ## What she wears
 
@@ -504,14 +543,14 @@ The ladder is scaled for **Belarus**, where a summer maximum is 23-25:
 
 Precipitation beats temperature: wet is wet.
 
-**The outfit follows the clock, not the API.** `isNight` is baked into a forecast
-payload when it is derived, and a payload can sit unchanged for hours - a whole
-day if the API is down. So the wardrobe used to be re-evaluated only when new
-weather arrived, which meant sunset could pass unnoticed: she kept her cap and
-sunglasses on into the dark and then wore them to bed. `dress()` now runs on every
-minute tick, recomputing day/night from the sunrise and sunset the payload already
-carries. `Wardrobe.set()` skips the slots that are already right, so this costs
-nothing on the 1439 minutes when nothing changes.
+**The outfit follows the clock, not the network.** `isNight` is baked into a
+forecast payload when it is derived, and a payload can sit unchanged for hours -
+a whole day if the network is down. So the wardrobe used to be re-evaluated only
+when new weather arrived, which meant sunset could pass unnoticed: she kept her
+cap and sunglasses on into the dark and then wore them to bed. `dress()` now runs
+on every minute tick, recomputing day/night from the sunrise and sunset the
+payload already carries. `Wardrobe.set()` skips the slots that are already right,
+so this costs nothing on the 1439 minutes when nothing changes.
 
 **Nothing is worn in bed.** Quiet hours call `Wardrobe.bare()`.
 
@@ -525,9 +564,9 @@ animation.
 node tools/check-wardrobe.js
 ```
 
-36 checks: the ladder at ten weathers, sun accessories removed at every
-temperature after sunset, five scene-leftover scenarios, bedtime, and that every
-one of the eight garments is reachable from some outfit.
+The ladder at ten weathers, sun accessories removed at every temperature after
+sunset, five scene-leftover scenarios, bedtime, and that every one of the eight
+garments is reachable from some outfit.
 
 ## Adding an animation
 
@@ -587,14 +626,22 @@ identically; new ones should go in `scenes.js`.
 
 ---
 
+## Permissions
+
+| permission | why |
+|---|---|
+| Internet | the forecast and the city search |
+| Network state | so the page knows it is offline and tries nothing |
+| Run at startup | to come back by itself after a power cut |
+| Approximate location | only for **USE MY LOCATION**, asked when it is tapped |
+
+---
+
 ## Known issues
 
-**The Yandex API returns HTTP 403.** The key or the quota needs checking. The
-cache keeps the display alive for twelve hours, and the retry ladder is working,
-but with no forecast Lili cannot dress for the weather and every
-weather-dependent animation is correctly excluded — about fourteen distinct
-scenes a day instead of nineteen. On the author's PC this is the antivirus
-blocking the call, not the key.
+**Times are the phone's.** Days, hours, sunrise and sunset are shown on the
+phone's clock, as the clock itself is. A city in another time zone shows its
+weather on your time.
 
 **`episodes.js` is misnamed** and holds two parallel systems. There are no
 episodes any more; everything happens in place on the forecast screen.
@@ -606,7 +653,12 @@ episodes any more; everything happens in place on the forecast screen.
 The forecast layout — the clock, the day columns and the icon set — began as
 **Weather informer v1** (2025) by Alexey N (meczengo@gmail.com). Everything in
 `src/cat`, the frame driver, the day scheduler and the build are new work, and the
-forecast half has been rewritten around the hourly API — but the layout is still
-recognisably his.
+forecast half has been rewritten around the hourly forecast — but the layout is
+still recognisably his.
+
+Weather data by **Open-Meteo.com** ([open-meteo.com](https://open-meteo.com)),
+licensed CC BY 4.0; its place search is built on GeoNames. Fallback weather data
+by **MET Norway** (the Norwegian Meteorological Institute,
+[api.met.no](https://api.met.no)), licensed CC BY 4.0 and NLOD 2.0.
 
 Licensed under the MIT License — see `LICENSE`.

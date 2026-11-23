@@ -3,11 +3,18 @@
  *   node tools/build.js
  *
  * Produces:
- *   informer.html                          <- the single file the phone runs
+ *   informer.html                 <- the single file the phone runs
  *   android/assets/informer.html  <- same file, for the APK
+ *   tools/studio.built.html       <- the animation studio
  *
  * The phone only ever receives one self-contained .html, so every module is
  * inlined here in dependency order.
+ *
+ * THIS BUILD READS NOTHING PRIVATE. The forecast is free and keyless and the
+ * place is chosen on the phone, so there is no key and no coordinates to
+ * substitute - and .local/ is never opened (check-settings.js asserts it). As
+ * a last line, every output is refused (exit 1, nothing written) if it
+ * mentions yandex or holds anything shaped like a 36-character key.
  */
 var fs = require('fs');
 var path = require('path');
@@ -23,11 +30,39 @@ var PLANDEMO = process.argv.indexOf('--plandemo') !== -1;
 
 function read(p) { return fs.readFileSync(path.join(root, p), 'utf8'); }
 function exists(p) { return fs.existsSync(path.join(root, p)); }
-function write(p, s) {
-	var full = path.join(root, p);
-	fs.mkdirSync(path.dirname(full), { recursive: true });
-	fs.writeFileSync(full, s, 'utf8');
-	console.log('  ' + p + '  (' + (s.length / 1024).toFixed(1) + ' KB)');
+
+/* ---- what may not ship ---- */
+var FORBIDDEN = [
+	[/yandex/i, 'mentions yandex'],
+	[/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, 'holds a 36-character key-shaped string']
+];
+
+var outputs = [];          /* [path, content], written only once all pass */
+
+function emit(p, s) { outputs.push([p, s]); }
+
+function guard() {
+	var bad = [];
+	outputs.forEach(function (o) {
+		FORBIDDEN.forEach(function (f) {
+			var m = f[0].exec(o[1]);
+			if (m) bad.push(o[0] + ' ' + f[1] + ' at offset ' + m.index);
+		});
+	});
+	if (bad.length) {
+		bad.forEach(function (b) { console.log('  !! ' + b); });
+		console.log('FAILED: nothing written.');
+		process.exit(1);
+	}
+}
+
+function writeAll() {
+	outputs.forEach(function (o) {
+		var full = path.join(root, o[0]);
+		fs.mkdirSync(path.dirname(full), { recursive: true });
+		fs.writeFileSync(full, o[1], 'utf8');
+		console.log('  ' + o[0] + '  (' + (o[1].length / 1024).toFixed(1) + ' KB)');
+	});
 }
 
 /* ---- the cat artwork, made to fill whatever box it is dropped into ---- */
@@ -42,8 +77,11 @@ var MODULES = [
 	'src/core/store.js',
 	'src/core/settings.js',
 	'src/core/host.js',
+	'src/core/i18n.js',
+	'src/core/places.js',
 	'src/core/bus.js',
 	'src/core/view.js',
+	'src/core/wxsource.js',
 	'src/core/weather.js',
 	'src/core/clock.js',
 	'src/cat/shapes.js',
@@ -76,41 +114,11 @@ function bundle() {
 
 console.log('build:');
 
-/* ---- the real key, if this machine has one ----
- *
- * The repository ships a placeholder API key and the coordinates of the city
- * rather than of a building, because it is published. A private
- * .local/config.json - gitignored - overrides both at build time, so the working
- * copy builds against the real thing without the real thing ever being tracked.
- *
- * Missing file, missing key: the placeholder stands, and the app runs with no
- * weather at all, which it is built to survive.                              */
-function localConfig() {
-	try {
-		var raw = fs.readFileSync(path.join(root, '.local', 'config.json'), 'utf8');
-		return JSON.parse(raw);
-	} catch (e) {
-		return null;
-	}
-}
-
 /* ---- the deploy artifact ---- */
 if (exists('src/informer.base.html')) {
 	var page = read('src/informer.base.html')
 		.split('<!--INJECT:CAT_SVG-->').join(catSvg)
 		.split('<!--INJECT:JS-->').join(bundle());
-
-	var local = localConfig();
-	if (local) {
-		if (local.api) page = page.replace(
-			"var api = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';",
-			"var api = '" + local.api + "';");
-		if (local.lat !== undefined) page = page.replace('var lat = 53.9;', 'var lat = ' + local.lat + ';');
-		if (local.lon !== undefined) page = page.replace('var lon = 27.56;', 'var lon = ' + local.lon + ';');
-		console.log('  (local key and coordinates from .local/config.json)');
-	} else {
-		console.log('  (no .local/config.json - placeholder key, no weather)');
-	}
 
 	/* Stamp the build. The plan is cached for the day, so without this a new APK
 	 * installed at noon keeps the schedule the old one wrote and any change to
@@ -147,8 +155,8 @@ if (exists('src/informer.base.html')) {
 		console.log('  (PLAN DEMO: 3 animations in the next 5 minutes)');
 	}
 
-	write('informer.html', page);
-	write('android/assets/informer.html', page);
+	emit('informer.html', page);
+	emit('android/assets/informer.html', page);
 } else {
 	console.log('  !! src/informer.base.html missing - skipping informer build');
 }
@@ -173,9 +181,11 @@ function bundleOf(list) {
 }
 
 if (exists('tools/studio.html')) {
-	write('tools/studio.built.html', read('tools/studio.html')
+	emit('tools/studio.built.html', read('tools/studio.html')
 		.split('<!--INJECT:CAT_SVG-->').join(catSvg)
 		.split('<!--INJECT:JS_ENGINE-->').join(bundleOf(STUDIO_MODULES)));
 }
 
+guard();
+writeAll();
 console.log('done.');

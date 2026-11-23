@@ -5,21 +5,27 @@
 <html><head>
 <script>
 
-var api = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'; //API Яндекс погода
-var api_url = 'https://api.weather.yandex.ru/v2/forecast'; //без lat/lon - они добавляются сами
-var lat = 53.9; //Широта
-var lon = 27.56; //Долгота 
+/* The forecast is free and needs no key: Open-Meteo, and MET Norway as the
+   fallback (src/core/wxsource.js). There is no default place - it is chosen on
+   the phone, behind the gear, and kept there (src/core/settings.js). With no
+   place the app asks the network for nothing. */
+var place_name = ''; //City, chosen in the settings
+var place_lat = null; //Latitude, from the settings
+var place_lon = null; //Longitude, from the settings
 
-var wind_max = 15; //Скорость ветра, максимум, м/с
-var pressure_min = 710; //Давление, минимум, мм рт ст
-var pressure_max = 770; //Давление, максимум, мм рт ст
+var wind_max = 15; //Wind speed at a full bar, m/s
+var pressure_min = 710; //Pressure at an empty bar, mm Hg
+var pressure_max = 770; //Pressure at a full bar, mm Hg
 
-var day = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
-var period = {morning: 'утром', day: 'днём', evening: 'вечером', night: 'ночью', day_day: 'день', day_night: 'ночь'};
+/* Every word on screen is in src/core/i18n.js, English and Russian, chosen from
+   the phone's language. '' = automatic; 'en' or 'ru' forces one (so does #lang=en
+   or #lang=ru in a browser tab's address). */
+var app_lang = ''; //'' | 'en' | 'ru'
 
-var timeout = 60 * 60; //API call interval, sec
+var timeout = 60 * 60; //Forecast call interval, sec
 var expire = 60 * 60 * 12; //Data expire, sec
-var retry_steps = [30, 120, 480]; //Retry backoff after a failed call, sec
+var retry_steps = [5 * 60, 15 * 60, 30 * 60]; //After a failed call, sec; then hourly again
+var calls_per_day = 48; //Ceiling on forecast requests per calendar day; healthy is 24
 
 /* ---------------- cat ---------------- */
 var cat_enabled       = true;
@@ -251,6 +257,46 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 }
 #cfg_msg.ok  { color: #8fd9a4; }
 #cfg_msg.bad { color: #e08a7a; }
+/* the city: the chosen one, how its forecast is doing, the search, the results */
+#cfg_place {
+	font-size: 4.2vw;
+	color: #eee;
+	padding: 0 0 1vw;
+}
+#cfg_place.none { color: #e0a33a; }
+#cfg_now {
+	font-size: 3.2vw;
+	color: #cfd8c8;
+	padding: 0 0 0.8vw;
+}
+#cfg_wx {
+	font-size: 2.8vw;
+	color: #8a9a80;
+	padding: 0 0 2.5vw;
+	min-height: 3vw;
+}
+#cfg_panel .row button.mini {
+	width: auto;
+	flex: none;
+	margin: 0 0 0 2vw;
+	padding: 3vw 3.4vw;
+}
+#cfg_results { padding: 2vw 0 0; }
+#cfg_panel button.res {
+	text-align: left;
+	letter-spacing: 0;
+	margin: 0 0 1.4vw;
+}
+#cfg_panel button.res small { color: #8a9a80; padding: 0.6vw 0 0; }
+#cfg_locate { margin: 1vw 0 0 !important; }
+#cfg_pmsg {
+	font-size: 3.1vw;
+	padding: 2vw 0 0;
+}
+#cfg_pmsg.ok  { color: #8fd9a4; }
+#cfg_pmsg.bad { color: #e08a7a; }
+#cfg_panel .credits { margin-top: 3vw; }
+#cfg_panel .credits small { padding: 0 0 1.6vw; line-height: 1.4; }
 #cat_menu {
 	position: fixed;
 	left: 0;
@@ -336,6 +382,32 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 	text-align: left;
 	z-index: 6;
 	text-shadow: 0 0 1vw #000;
+	max-width: 70vw;             /* clear of the credit in the other corner */
+}
+/* Where the numbers come from: "Open-Meteo.com" or "MET Norway". Small and
+ * dim, bottom-right, in the forecast's own layer: behind Lili, below the last
+ * forecast row, nowhere near the clock. It fades with the data it credits. */
+#wx_credit {
+	position: absolute;
+	right: 2.5vw;
+	bottom: 1.6vw;
+	font: 2.6vw Verdana, Arial, sans-serif;
+	color: #6c6c6c;
+	white-space: nowrap;
+	pointer-events: none;
+}
+/* First run: no place yet, so no forecast - say where to choose one. Shown by
+ * Weather.prompt() in the space the current weather will take. */
+#wx_prompt {
+	display: none;
+	position: absolute;
+	left: 0;
+	top: 74vw;
+	width: 100%;
+	font: 5.2vw/1.45 Verdana, Arial, sans-serif;
+	color: #c8c8c8;
+	text-align: center;
+	pointer-events: none;
 }
 #cat_debug {
 	position: fixed;
@@ -376,7 +448,7 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 			<div id="wind_humidity_pressure">
 				<div class="sector_wind">
 					<span id="wind_icon" class="value wind_icon sector_wind_icon" data-type="style"></span>
-					<span><span id="wind" class="value"></span> м/с</span>
+					<span><span id="wind" class="value"></span> <span data-i18n="unit_wind"></span></span>
 				</div>
 				<div class="wind_humidity_pressure_bar wind_pressure_bar sector_wind_progress">
 					<div id="wind_progress" class="value wind_humidity_progress" data-type="style"></div>
@@ -390,7 +462,7 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 				</div>
 				<div class="sector_pressure">
 					<span id="presure_icon" class="presure_icon"></span>
-					<span><span id="pressure" class="value"></span> мм рс</span>
+					<span><span id="pressure" class="value"></span> <span data-i18n="unit_pressure"></span></span>
 				</div>
 				<div class="wind_humidity_pressure_bar pressure_bar sector_pressure_progress">
 					<div id="pressure_progress" class="value" data-type="style"></div>
@@ -407,7 +479,7 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 						<div class="forecast_wind_block sector_forecast_wind_0">
 							<span id="forecast_wind_icon_0" class="value wind_icon sector_forecast_wind_icon_0" data-type="style"></span>
 							<span>
-								<span id="forecast_wind_0" class="value forecast_wind"></span> м/с
+								<span id="forecast_wind_0" class="value forecast_wind"></span> <span data-i18n="unit_wind"></span>
 							</span>
 						</div>
 					</div>
@@ -422,7 +494,7 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 						<div class="forecast_wind_block sector_forecast_wind_1">
 							<span id="forecast_wind_icon_1" class="value wind_icon sector_forecast_wind_icon_1" data-type="style"></span>
 							<span>
-								<span id="forecast_wind_1" class="value forecast_wind"></span> м/с
+								<span id="forecast_wind_1" class="value forecast_wind"></span> <span data-i18n="unit_wind"></span>
 							</span>
 						</div>
 					</div>
@@ -436,7 +508,7 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 			</div>
 			<div id="duration_block" class="sector_duration_hour">
 				<div id="duration">
-					<span id="duration_hour" class="value"></span> ч <span id="duration_minute" class="value"></span> мин
+					<span id="duration_hour" class="value"></span> <span data-i18n="unit_hours"></span> <span id="duration_minute" class="value"></span> <span data-i18n="unit_minutes"></span>
 				</div>
 				<div id="duration_bar">
 					<div id="duration_time" class="value" data-type="style"></div>
@@ -450,6 +522,9 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 			</div>
 			<div id="moon" class="value sector_moon" data-type="class"></div>
 		</div>
+		<!-- the forecast's own layer, so it is behind Lili and never on the clock -->
+		<div id="wx_credit" class="value sector_wx_credit"></div>
+		<div id="wx_prompt" data-i18n="prompt"></div>
 	</div>
 	<div id="cat_stage_back"><div id="cat_props_back"></div></div>
 	<!-- ============ cat stage: above the forecast, click-through except her hitbox ============ -->
@@ -775,7 +850,7 @@ body {
 .ovc_\+ra {
 	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='50%25' x2='50%25' y1='0%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%239FC7FF'/%3E%3Cstop offset='100%25' stop-color='%239BC1F5'/%3E%3C/linearGradient%3E%3CradialGradient id='b' cx='55.585%25' cy='10.083%25' r='58.215%25' fx='55.585%25' fy='10.083%25' gradientTransform='matrix(0 -1 .719 0 .483 .657)'%3E%3Cstop offset='0%25' stop-color='%23486DA8' stop-opacity='.4'/%3E%3Cstop offset='100%25' stop-color='%23486DA8' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg fill='none'%3E%3Cpath fill='%2366AFEB' fill-rule='nonzero' d='M5.56 15.452l-1.5 3.506c-.163.381.014.822.395.985.381.163.822-.014.985-.395l1.5-3.506c.163-.381-.014-.822-.395-.985-.381-.163-.822.014-.985.395zm4 0l-1.5 3.506c-.163.381.014.822.395.985.381.163.822-.014.985-.395l1.5-3.506c.163-.381-.014-.822-.395-.985-.381-.163-.822.014-.985.395zm4 0l-1.5 3.506c-.163.381.014.822.395.985.381.163.822-.014.985-.395l1.5-3.506c.163-.381-.014-.822-.395-.985-.381-.163-.822.014-.985.395zm4 0l-1.5 3.506c-.163.381.014.822.395.985.381.163.822-.014.985-.395l1.5-3.506c.163-.381-.014-.822-.395-.985-.381-.163-.822.014-.985.395z'/%3E%3Cpath fill='url(%23a)' d='M7 14c-2.209 0-4-1.791-4-4s1.791-4 4-4c.417 0 .818.064 1.196.182.563-1.842 2.277-3.182 4.304-3.182 2.485 0 4.5 2.015 4.5 4.5 0 .235-.018.465-.053.69.328-.123.682-.19 1.053-.19 1.657 0 3 1.343 3 3s-1.343 3-3 3h-11z'/%3E%3Cpath fill='url(%23b)' d='M8 7.5c0 2.485 2.015 4.5 4.5 4.5 2.251 0 4.115-1.652 4.447-3.81.328-.123.682-.19 1.053-.19 1.657 0 3 1.343 3 3s-1.343 3-3 3h-11c-2.209 0-4-1.791-4-4s1.791-4 4-4c.417 0 .818.064 1.196.182-.128.417-.196.859-.196 1.318z'/%3E%3C/g%3E%3C/svg%3E");
 }
-.ovc_\+sn {
+.ovc_\+sn, .ovc_ts_sn {
 	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='50%25' x2='50%25' y1='0%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%239FC7FF'/%3E%3Cstop offset='100%25' stop-color='%239BC1F5'/%3E%3C/linearGradient%3E%3CradialGradient id='b' cx='55.585%25' cy='10.083%25' r='58.215%25' fx='55.585%25' fy='10.083%25' gradientTransform='matrix(0 -1 .719 0 .483 .657)'%3E%3Cstop offset='0%25' stop-color='%23486DA8' stop-opacity='.4'/%3E%3Cstop offset='100%25' stop-color='%23486DA8' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg fill='none'%3E%3Cpath fill='%2367C8E2' fill-rule='nonzero' d='M12.125 18.417l.682-.394c.722-.417 1.347.666.625 1.083l-.682.394.682.394c.722.417.097 1.499-.625 1.083l-.682-.394v.787c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-.787l-.682.394c-.722.417-1.347-.666-.625-1.083l.682-.394-.682-.394c-.722-.417-.097-1.499.625-1.083l.682.394v-.787c0-.345.28-.625.625-.625s.625.28.625.625v.787zm6-2l.682-.394c.722-.417 1.347.666.625 1.083l-.682.394.682.394c.722.417.097 1.499-.625 1.083l-.682-.394v.787c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-.787l-.682.394c-.722.417-1.347-.666-.625-1.083l.682-.394-.682-.394c-.722-.417-.097-1.499.625-1.083l.682.394v-.787c0-.345.28-.625.625-.625s.625.28.625.625v.787zm-12 0l.682-.394c.722-.417 1.347.666.625 1.083l-.682.394.682.394c.722.417.097 1.499-.625 1.083l-.682-.394v.787c0 .345-.28.625-.625.625s-.625-.28-.625-.625v-.787l-.682.394c-.722.417-1.347-.666-.625-1.083l.682-.394-.682-.394c-.722-.417-.097-1.499.625-1.083l.682.394v-.787c0-.345.28-.625.625-.625s.625.28.625.625v.787z'/%3E%3Cpath fill='url(%23a)' d='M7 14c-2.209 0-4-1.791-4-4s1.791-4 4-4c.417 0 .818.064 1.196.182.563-1.842 2.277-3.182 4.304-3.182 2.485 0 4.5 2.015 4.5 4.5 0 .235-.018.465-.053.69.328-.123.682-.19 1.053-.19 1.657 0 3 1.343 3 3s-1.343 3-3 3h-11z'/%3E%3Cpath fill='url(%23b)' d='M8 7.5c0 2.485 2.015 4.5 4.5 4.5 2.251 0 4.115-1.652 4.447-3.81.328-.123.682-.19 1.053-.19 1.657 0 3 1.343 3 3s-1.343 3-3 3h-11c-2.209 0-4-1.791-4-4s1.791-4 4-4c.417 0 .818.064 1.196.182-.128.417-.196.859-.196 1.318z'/%3E%3C/g%3E%3C/svg%3E");
 }
 .ovc_-ra {

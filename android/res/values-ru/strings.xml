@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lili Weather</string>
+    <string name="location_rationale">Lili Weather использует приблизительное местоположение только чтобы найти ваш город для прогноза. Погодному сервису отправляются лишь округлённые координаты.</string>
+</resources>

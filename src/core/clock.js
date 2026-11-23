@@ -11,7 +11,7 @@ var Clock = (function () {
 
 		View.update({
 			time: pad(date.getHours()) + ':' + pad(date.getMinutes()),
-			date: day[date.getDay()] + ', ' + pad(date.getDate()) + '.' + pad(date.getMonth() + 1) + '.' + String(date.getFullYear()).slice(-2)
+			date: I18n.date(date)         /* the phone's language: i18n.js */
 		}, now);
 
 		if (Weather.due(now)) Weather.fetch(now, date);

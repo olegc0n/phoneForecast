@@ -17,6 +17,22 @@ var Host = (function () {
 
 		sdk: function () {
 			try { return api && api.sdk ? api.sdk() : 0; } catch (e) { return 0; }
+		},
+
+		/* the phone's language (Locale.getDefault().getLanguage()), or '' in a tab */
+		lang: function () {
+			try { return api && api.lang ? String(api.lang() || '') : ''; } catch (e) { return ''; }
+		},
+
+		/* "Use my location": only the APK can ask Android where the phone is.
+		 * locate() starts it and returns at once; the answer comes back later
+		 * through Places.located() (MainActivity calls it). */
+		canLocate: function () {
+			try { return !!(api && api.locate); } catch (e) { return false; }
+		},
+
+		locate: function () {
+			try { return !!(api && api.locate && api.locate()); } catch (e) { return false; }
 		}
 
 		/* No brightness control. There was one, dimming the screen during quiet
