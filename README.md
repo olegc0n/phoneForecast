@@ -12,6 +12,17 @@ Lili is modelled on a plush toy cat: white body, a ginger patch down the left of
 her face, ginger-rimmed ears, big amber eyes and a mint-green vest with a crystal
 button. The photograph she was drawn from is not in the repository.
 
+<p align="center">
+  <img src="docs/images/lili-weather.jpg" width="300" alt="Lili Weather: a large clock, the date and the forecast, with Lili the cat playing with a toy mouse">
+  &nbsp;&nbsp;
+  <img src="docs/images/lili-wallpaper.jpg" width="300" alt="Lili Wallpaper: Lili tangled in yarn on an Android home screen, under the icons">
+</p>
+<p align="center">
+  <b>Lili Weather</b>: the full display with a free forecast, no key needed (branch <code>free-forecast</code>)<br>
+  <b>Lili Wallpaper</b>: Lili as a live wallpaper on your own home screen (branch <code>screensaver</code>)<br>
+  Ready-to-install APKs are on the <a href="https://github.com/olegc0n/phoneForecast/releases">Releases</a> page.
+</p>
+
 ---
 
 ## Before you build: your own API key
