@@ -81,6 +81,35 @@
     <string name="mock_apps">Телефон,Сообщения,Камера,Фото,Часы,Карты,Музыка,Почта,Заметки,Погода</string>
     <string name="mock_folder">Сервисы</string>
 
+    <!-- настоящая погода: место, переключатель, источник (саму погоду не показываем) -->
+    <string name="weather_heading">Погода</string>
+    <string name="weather_for">Погода для: %1$s</string>
+    <string name="weather_none">Место не выбрано, поэтому погода придуманная</string>
+    <string name="weather_real">Настоящая погода</string>
+    <string name="weather_search_hint">Город</string>
+    <string name="weather_search">Найти</string>
+    <string name="weather_locate">Моё местоположение</string>
+    <string name="weather_note">Лили одевается по погоде этого места и выбирает по ней анимации; саму погоду она нигде не показывает. Отправляются только координаты или город, который вы ищете.</string>
+    <string name="weather_searching">Поиск…</string>
+    <string name="weather_locating">Определяю местоположение…</string>
+    <string name="weather_updating">Обновляется…</string>
+    <string name="weather_updated">Обновлено %1$s · %2$s</string>
+    <string name="weather_updated_failed">Обновлено %1$s · %2$s (последнее обновление не удалось; Лили попробует позже)</string>
+    <string name="weather_no_data">Данных пока нет</string>
+    <string name="weather_failed">Данных пока нет: сервис погоды недоступен. Лили попробует позже.</string>
+    <string name="weather_off">Настоящая погода выключена: погода придуманная, и Лили не пользуется сетью.</string>
+    <string name="weather_src_om">Open-Meteo</string>
+    <string name="weather_src_met">MET Norway</string>
+    <string name="weather_by_om">Данные о погоде: Open-Meteo.com</string>
+    <string name="weather_by_met">Данные о погоде: MET Norway</string>
+    <string name="weather_pick">Выберите место</string>
+    <string name="weather_not_found">Место «%1$s» не найдено.</string>
+    <string name="weather_search_failed">Не получилось найти. Проверьте подключение и попробуйте ещё раз.</string>
+    <string name="weather_need_location">Без доступа к местоположению найдите свой город поиском.</string>
+    <string name="weather_location_off">Определение местоположения выключено. Включите его или найдите город поиском.</string>
+    <string name="weather_location_failed">Не получилось определить местоположение. Найдите город поиском.</string>
+    <string name="weather_my_location">Моё местоположение (%1$s, %2$s)</string>
+
     <string name="note_touch">На касания она пока не отвечает.</string>
     <string name="photo_failed">Не получилось использовать эту картинку.</string>
     <string name="no_webview">Android System WebView сейчас недоступен. Лили появится, когда он заработает.</string>

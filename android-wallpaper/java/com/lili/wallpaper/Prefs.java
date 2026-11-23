@@ -8,7 +8,8 @@ import android.content.SharedPreferences;
  *
  * The settings screen writes it, and the look (bg_*, size, lift) only when the
  * user applies a draft (Look.toPrefs, one apply()). Original writes orig_at once,
- * HomeShot the shot_* keys of a capture. Every wallpaper engine
+ * HomeShot the shot_* keys of a capture, Forecast the wx_* keys of real
+ * weather (the place and the switch apply at once). Every wallpaper engine
  * listens to it (they all run in this one process and share one
  * SharedPreferences instance), so an applied change shows on the home screen
  * with no page reload. Always reached through the application context, so that
@@ -51,6 +52,22 @@ final class Prefs {
     /* The wallpapers that were there before Lili took each screen (Backup). */
     static final String BK_HOME = "bk_home";       /* "" | "static" | "live:<component>" */
     static final String BK_LOCK = "bk_lock";       /* "" | "static" | "mirror" | "live:<component>" */
+
+    /* Real weather (Forecast, WeatherPanel). Not look keys: they apply at once,
+     * never through the draft, and no view redraws for them. The place: */
+    static final String WX_PLACE = "wx_place";     /* "Minsk, Belarus", as shown */
+    static final String WX_LAT = "wx_lat";         /* degrees, a string with at most 4 decimals */
+    static final String WX_LON = "wx_lon";
+    static final String WX_HOW = "wx_how";         /* HOW_SEARCH | HOW_GPS */
+    static final String WX_ON = "wx_on";           /* the Real weather switch; on unless turned off */
+    /* ...and the fetches (written only by Forecast): */
+    static final String WX_AT = "wx_at";           /* when the stored forecast was fetched; 0: none */
+    static final String WX_SRC = "wx_src";         /* Forecast.SRC_OPEN_METEO | SRC_MET */
+    static final String WX_KEY = "wx_key";         /* the place it is for (Forecast.Place.key()) */
+    static final String WX_TRY_AT = "wx_try_at";   /* the last attempt, success or not */
+    static final String WX_FAILS = "wx_fails";     /* failed attempts in a row */
+    static final String WX_ERROR = "wx_error";     /* why the last one failed, for the log; "" */
+    static final String HOW_SEARCH = "search", HOW_GPS = "gps";
 
     /* Keys of the three-button version, read once to carry lock mode over and then removed. */
     private static final String OLD_WHERE = "where", OLD_BK_AT = "bk_at", OLD_BK_DENIED = "bk_denied";
@@ -125,6 +142,11 @@ final class Prefs {
     /** Lock mode: the lock-screen picture is Lili's, and kept fresh. */
     static boolean lockOn(SharedPreferences p) {
         return p.getBoolean(LOCK_ON, false);
+    }
+
+    /** The Real weather switch, as set (a place is needed too: Forecast.enabled). */
+    static boolean weatherOn(SharedPreferences p) {
+        return p.getBoolean(WX_ON, true);
     }
 
     /** What the page's Wall.apply() and its boot config take, as applied: {"size":60,"lift":22} */

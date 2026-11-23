@@ -14,7 +14,8 @@
  *   every src/cat/* entry                          the engine and the scenes
  * What changes:
  *   src/cat/plan.js  ->  src/wallpaper/sky.js, shuffle.js, plan-random.js
- *   appended         ->  src/wallpaper/wall-tick.js, still.js, wall.js, wall-boot.js
+ *   appended         ->  src/wallpaper/wall-tick.js, forecast.js, still.js, wall.js,
+ *                        wall-boot.js
  * Everything else in src/core (the forecast, the settings dialog, boot.js) is
  * left out.
  *
@@ -32,8 +33,8 @@ var REQUIRED = ['src/core/dom.js', 'src/core/bus.js', 'src/cat/plan.js',
                 'src/cat/episodes.js', 'src/cat/cat.js'];
 var HEAD = ['src/wallpaper/timers.js'];
 var PLAN_STANDIN = ['src/wallpaper/sky.js', 'src/wallpaper/shuffle.js', 'src/wallpaper/plan-random.js'];
-var WALL_TAIL = ['src/wallpaper/wall-tick.js', 'src/wallpaper/still.js', 'src/wallpaper/wall.js',
-                 'src/wallpaper/wall-boot.js'];
+var WALL_TAIL = ['src/wallpaper/wall-tick.js', 'src/wallpaper/forecast.js', 'src/wallpaper/still.js',
+                 'src/wallpaper/wall.js', 'src/wallpaper/wall-boot.js'];
 
 /* The informer's MODULES array, as written in tools/build.js. */
 function informerModules() {

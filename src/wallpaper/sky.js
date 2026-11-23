@@ -1,4 +1,5 @@
-/* sky.js - an invented sky, for a wallpaper that never asks the network.
+/* sky.js - the sky she lives under: the real forecast when there is one, else
+ * an invented one, so the wallpaper needs no network to have weather.
  *
  * Every `when` condition, the wardrobe, her mood and the idle-beat weights are
  * written against the payload weather.js derive() publishes. So rather than
@@ -13,7 +14,18 @@
  * Night comes from the local time against a sunrise/sunset table for about
  * 50 degrees north. When it flips, the payload is published again, because the
  * scene conditions and Episodes.pick read `wx.isNight` as it is, not as it
- * would be now.                                                               */
+ * would be now.
+ *
+ * REAL WEATHER WINS. When the user has set a place, the phone fetches a
+ * forecast and Wall.forecast() hands Sky a source for it (useReal: Forecast.now,
+ * forecast.js). While that source has an answer for the present hour, it is
+ * the sky: begin() publishes it, tick() publishes it again only when something
+ * she reacts to has changed (material(): the sky, precipitation, thunder,
+ * night, the whole degree, the whole m/s, falling pressure), so her clothes do
+ * not flicker, and redraw() - the shuffle's every-fifth arming, a show after
+ * three hours away, the boot loop looking for unseen scenes - changes nothing.
+ * When the source has no answer (no data for this hour, or fetched more than
+ * 48 h ago) or is taken away, the invented sky comes back at the next tick.   */
 
 var Sky = (function () {
 
@@ -55,7 +67,8 @@ var Sky = (function () {
 		'Indian/Mauritius', 'Indian/Reunion', 'Indian/Antananarivo'
 	];
 
-	var cur = null;               /* { kind: index into TABLE, wx: payload } */
+	var cur = null;               /* { kind: index into TABLE (-1 for real), real, wx: payload } */
+	var real = null;              /* (date) -> the real payload or null; null: invented only */
 
 	function hemisphere() {
 		var h = (typeof wall_hemisphere === 'string') ? wall_hemisphere : 'auto';
@@ -137,27 +150,83 @@ var Sky = (function () {
 	}
 
 	function publish(kind, date) {
-		cur = { kind: kind, wx: make(kind, date) };
+		cur = { kind: kind, real: false, wx: make(kind, date) };
 		LOG('sky ' + TABLE[kind][0] + ' ' + cur.wx.temp + 'C' + (cur.wx.isNight ? ' night' : ' day') +
 			' (' + hemisphere() + ')');
 		Bus.emit('weather', cur.wx);
 		return TABLE[kind][0];
 	}
 
-	/* a fresh sky for this start */
+	/* ---- real weather ---- */
+
+	/* What she reacts to, as one string: two payloads with the same key are the
+	 * same weather to her. Not the minutes to sunrise, the humidity, the exact
+	 * pressure or the wind's direction. */
+	function material(wx) {
+		if (!wx) return '';
+		return [wx.sky, wx.precip, wx.intensity, !!wx.isThunder, !!wx.isNight,
+		        wx.temp === null ? 'null' : Math.round(wx.temp), Math.round(wx.wind || 0),
+		        wx.pressureTrend < -3].join('|');
+	}
+
+	function realNow(date) {
+		if (!real) return null;
+		try {
+			return real(date) || null;
+		} catch (e) {
+			Guard.fault('sky-real', e);
+			return null;
+		}
+	}
+
+	function publishReal(wx) {
+		cur = { kind: -1, real: true, wx: wx };
+		LOG('sky real ' + wx.code + ' ' + wx.temp + 'C' + (wx.isNight ? ' night' : ' day'));
+		Bus.emit('weather', wx);
+		return 'real';
+	}
+
+	/* The forecast's answer for `date`, or null for the invented sky only. It
+	 * takes effect at the next begin(), tick() or redraw(). */
+	function useReal(fn) {
+		real = typeof fn === 'function' ? fn : null;
+	}
+
+	/* a fresh sky for this start: the real one if there is one */
 	function begin(date) {
+		var wx = realNow(date);
+		if (wx) return publishReal(wx);
 		return publish(draw(date.getMonth(), -1), date);
 	}
 
-	/* a different sky - never the one she has now */
+	/* A different invented sky - never the one she has now. Real weather is not
+	 * redrawn: while it has an answer, this publishes it only if it is new. */
 	function redraw(date) {
-		return publish(draw(date.getMonth(), cur ? cur.kind : -1), date);
+		var wx = realNow(date);
+		if (wx) {
+			if (cur && cur.real && material(wx) === material(cur.wx)) return 'real';
+			return publishReal(wx);
+		}
+		return publish(draw(date.getMonth(), cur && !cur.real ? cur.kind : -1), date);
 	}
 
-	/* Every minute: publish again if night has come or gone. Returns whether it
-	 * did, so the harness can count. */
+	/* Every minute: publish again if night has come or gone - or, with real
+	 * weather, if anything material changed; and back to an invented sky when
+	 * the forecast runs out. Returns whether it published, so the harness can
+	 * count. */
 	function tick(date) {
 		if (!cur) return false;
+		var wx = realNow(date);
+		if (wx) {
+			if (cur.real && material(wx) === material(cur.wx)) return false;
+			publishReal(wx);
+			return true;
+		}
+		if (cur.real) {
+			LOG('sky: no real weather for now - an invented sky again');
+			publish(draw(date.getMonth(), -1), date);
+			return true;
+		}
 		var sun = sunFor(date);
 		var m = date.getHours() * 60 + date.getMinutes();
 		var night = m < sun[0] || m > sun[1];
@@ -170,8 +239,11 @@ var Sky = (function () {
 		begin: begin,
 		redraw: redraw,
 		tick: tick,
+		useReal: useReal,
 		current: function () { return cur ? cur.wx : null; },
-		kind: function () { return cur ? TABLE[cur.kind][0] : null; },
+		kind: function () { return cur ? (cur.real ? 'real' : TABLE[cur.kind][0]) : null; },
+		isReal: function () { return !!(cur && cur.real); },
+		material: material,
 		kinds: function () {
 			var out = [];
 			for (var i = 0; i < TABLE.length; i++) out.push(TABLE[i][0]);

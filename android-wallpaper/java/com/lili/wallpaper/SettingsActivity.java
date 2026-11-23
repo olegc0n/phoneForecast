@@ -41,6 +41,7 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -141,6 +142,14 @@ import java.util.Locale;
  *
  * Photos come from the system picker and are copied once, on a worker thread,
  * so no URI grant is kept.
+ *
+ * WEATHER (WeatherPanel, below Preview): the place her weather is for - a city
+ * searched for, or Use my location - and the Real weather switch. Not part of
+ * the draft: it applies at once (Forecast). The section is built from the
+ * factories here and uses this screen's own dialog for the search results;
+ * refresh() refreshes it too, and the location permission's answer is passed
+ * on to it. No temperature or condition is shown anywhere, only where the
+ * weather is for, when it was last fetched and from whom.
  */
 public class SettingsActivity extends Activity {
 
@@ -202,6 +211,7 @@ public class SettingsActivity extends Activity {
     private View dimRow;
     private SeekBar dimBar, sizeBar, liftBar;
     private TextView notApplied;
+    private WeatherPanel weather;   /* the Weather section: applies at once, not part of the draft */
     private Dialog dialog;          /* the no-backup dialog */
     private Dialog leaving;         /* Back with changes waiting: Apply, Discard, Keep editing */
 
@@ -392,6 +402,10 @@ public class SettingsActivity extends Activity {
         });
         col.addView(previewButton, wrap(0, dp(16)));
 
+        /* ---- the weather: where it is for, applied at once (not part of the draft) ---- */
+        weather = new WeatherPanel(this);
+        col.addView(weather.build(), wrap(dp(8), dp(16)));
+
         col.addView(text(getString(R.string.note_touch), 14, TEXT_DIM), wrap(0, 0));
 
         ScrollView scroll = new ScrollView(this);
@@ -422,6 +436,7 @@ public class SettingsActivity extends Activity {
         main.postDelayed(recheck, 800);
         /* back from All files access, the permission question or anywhere else: once more */
         obtainOriginal();
+        weather.resume();
     }
 
     @Override
@@ -463,6 +478,7 @@ public class SettingsActivity extends Activity {
         }
         /* gone for good (Back, Discard, the task swiped away): a draft photo nobody applied */
         if (isFinishing() && draft.draftPhoto) dropDraftPhoto();
+        weather.destroy();
         super.onDestroy();
     }
 
@@ -512,6 +528,7 @@ public class SettingsActivity extends Activity {
         saved = now;
         if (follow) draft = now;
         showDraft(follow);
+        weather.refresh();
     }
 
     /* "Lili is on: home screen", "...home and lock screen (animated)", "not set"... */
@@ -995,6 +1012,10 @@ public class SettingsActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
         boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (request == WeatherPanel.REQ_LOCATION) {
+            weather.permissionResult(granted);
+            return;
+        }
         if (request == REQ_READ_ORIGINAL) {
             origAsking = false;
             Log.i(TAG, "[ORIG] READ_EXTERNAL_STORAGE " + (granted ? "granted" : "denied"));
@@ -1216,14 +1237,14 @@ public class SettingsActivity extends Activity {
 
     /* ---- our own dialogs: no AlertDialog, whose colours come from the theme ---- */
 
-    private Dialog newDialog() {
+    Dialog newDialog() {
         Dialog d = new Dialog(this);
         d.requestWindowFeature(Window.FEATURE_NO_TITLE);
         return d;
     }
 
-    /** A rounded DIALOG panel with the message on top; the caller adds the buttons. */
-    private LinearLayout dialogBox(String message) {
+    /** A rounded DIALOG panel with the message on top; the caller adds the buttons. The weather's search results too. */
+    LinearLayout dialogBox(String message) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(20), dp(20), dp(20), dp(16));
@@ -1232,7 +1253,7 @@ public class SettingsActivity extends Activity {
         return box;
     }
 
-    private void open(Dialog d, View box) {
+    void open(Dialog d, View box) {
         d.setContentView(box);
         d.show();
         Window w = d.getWindow();
@@ -1416,7 +1437,7 @@ public class SettingsActivity extends Activity {
     }
 
     /** A button: our face, outline and text, so no theme or vendor colours it. The preview's buttons too. */
-    static Button button(Context c, int label, View.OnClickListener click) {
+    static Button button(Context c, CharSequence label, View.OnClickListener click) {
         Button b = new Button(c);
         b.setText(label);
         b.setAllCaps(false);
@@ -1428,6 +1449,10 @@ public class SettingsActivity extends Activity {
         b.setPadding(px(c, 16), px(c, 10), px(c, 16), px(c, 10));
         b.setOnClickListener(click);
         return b;
+    }
+
+    static Button button(Context c, int label, View.OnClickListener click) {
+        return button(c, c.getText(label), click);
     }
 
     private Button button(int label, View.OnClickListener click) {
@@ -1495,6 +1520,34 @@ public class SettingsActivity extends Activity {
 
     private TextView text(String s, int sp, int color) {
         return text(this, s, sp, color);
+    }
+
+    /**
+     * A one-line text field (the weather's city search): TEXT on a DIALOG face
+     * with an EDGE outline, TEXT_DIM hints, RIPPLE selection, a KNOB cursor
+     * (API 29+; older ones take the theme's accent) - nothing from the theme's
+     * own field, which EMUI may draw white.
+     */
+    static EditText field(Context c, int hint) {
+        EditText e = new EditText(c);
+        e.setHint(hint);
+        e.setTextColor(TEXT);
+        e.setHintTextColor(TEXT_DIM);
+        e.setHighlightColor(RIPPLE);
+        e.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        e.setSingleLine(true);
+        GradientDrawable face = rounded(DIALOG, px(c, 8));
+        face.setStroke(px(c, 1), EDGE);
+        e.setBackground(face);
+        e.setBackgroundTintList(null);                       /* no vendor tint over our face */
+        e.setPadding(px(c, 12), px(c, 10), px(c, 12), px(c, 10));
+        if (Build.VERSION.SDK_INT >= 29) {
+            GradientDrawable cursor = new GradientDrawable();
+            cursor.setColor(KNOB);
+            cursor.setSize(px(c, 2), px(c, 20));
+            e.setTextCursorDrawable(cursor);
+        }
+        return e;
     }
 
     private LinearLayout.LayoutParams wrap(int top, int bottom) {

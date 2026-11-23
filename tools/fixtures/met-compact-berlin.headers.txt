@@ -1,0 +1,19 @@
+HTTP/1.1 200 OK
+Server: nginx/1.18.0 (Ubuntu)
+Date: Fri, 20 Nov 2026 13:38:41 GMT
+Content-Type: application/json
+Content-Length: 2695
+Connection: keep-alive
+Last-Modified: Fri, 20 Nov 2026 13:16:01 GMT
+Expires: Fri, 20 Nov 2026 13:47:35 GMT
+X-Backend-Host: b_157_249_79_118_loc
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Methods: GET
+Access-Control-Allow-Headers: Origin
+Content-Encoding: gzip
+Vary: Accept, Accept-Encoding
+X-Varnish: 6962946295 6891181967
+Age: 1359
+Via: 1.1 dalton-a (Varnish/7.7)
+Accept-Ranges: bytes
+

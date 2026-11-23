@@ -23,6 +23,15 @@
  *                 black and every preset; no colour or control from the theme), the
  *                 opaque theme, its strings, the draft (the look written only by
  *                 commit()), My wallpaper never deleted, chroma mode always ended
+ *   J  Weather    real weather: both sources normalised from the captured fixtures
+ *                 (tools/fixtures/), every WMO code and MET symbol family, the hour
+ *                 across midnight and DST, local sunrise/sunset against Open-Meteo's
+ *                 own and an independent algorithm (polar day and night too), stale
+ *                 and empty data back to the invented sky, derive()'s shape, no
+ *                 republish without a material change, nothing consulted when it is
+ *                 off, scene reachability per condition; and the Java side read
+ *                 statically: the User-Agent, no fetch without a place, the job, no
+ *                 network for the page, HTTPS only, the policy's numbers
  *
  * After a merge from main, a failure in D, E or F means main changed something
  * the wallpaper leans on: fix it in src/wallpaper/, not in the shared file.          */
@@ -196,6 +205,12 @@ function makePage(opts) {
 			config: function () { return opts.bridge.config || '{"size":60,"lift":22}'; }
 		};
 		if (opts.bridge.stillReady) sandbox.PhoneForecast.stillReady = opts.bridge.stillReady;
+		if (opts.bridge.forecast !== undefined) {
+			sandbox.PhoneForecast.forecast = function () {
+				page.forecastAsked = (page.forecastAsked || 0) + 1;
+				return typeof opts.bridge.forecast === 'function' ? opts.bridge.forecast() : opts.bridge.forecast;
+			};
+		}
 	}
 	sandbox.window = sandbox;
 
@@ -811,14 +826,19 @@ head('E. Built - wallpaper.html and the Android manifest');
 	if (!man) { note('android-wallpaper/AndroidManifest.xml not found'); return; }
 	var bare = man.replace(/<!--[\s\S]*?-->/g, '');
 	/* Exactly these, and nothing else: setting the lock-screen picture and
-	 * restoring wallpapers, the 3-hourly refresh job surviving a reboot,
-	 * reading the current wallpaper for the backup and My wallpaper - with
+	 * restoring wallpapers, the 3-hourly jobs surviving a reboot, reading the
+	 * current wallpaper for the backup and My wallpaper - with
 	 * READ_EXTERNAL_STORAGE up to API 32, where Android lets that permission do
-	 * it, and "All files access" (MANAGE_EXTERNAL_STORAGE) from API 33 - and the
+	 * it, and "All files access" (MANAGE_EXTERNAL_STORAGE) from API 33 - the
 	 * foreground service the home-screen capture needs (API 28+, and of type
-	 * mediaProjection on API 34+). */
-	var WANT_PERMS = ['android.permission.FOREGROUND_SERVICE',
+	 * mediaProjection on API 34+), and real weather: the network for the
+	 * forecast and the city search, its state (no attempt offline), and coarse
+	 * location for "Use my location" only. */
+	var WANT_PERMS = ['android.permission.ACCESS_COARSE_LOCATION',
+	                  'android.permission.ACCESS_NETWORK_STATE',
+	                  'android.permission.FOREGROUND_SERVICE',
 	                  'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
+	                  'android.permission.INTERNET',
 	                  'android.permission.MANAGE_EXTERNAL_STORAGE',
 	                  'android.permission.READ_EXTERNAL_STORAGE max 32',
 	                  'android.permission.RECEIVE_BOOT_COMPLETED',
@@ -832,7 +852,8 @@ head('E. Built - wallpaper.html and the Android manifest');
 	perms.sort();
 	check(perms.join(', ') === WANT_PERMS.join(', '),
 		'the manifest requests exactly SET_WALLPAPER, RECEIVE_BOOT_COMPLETED, READ_EXTERNAL_STORAGE (max SDK 32), ' +
-		'MANAGE_EXTERNAL_STORAGE, FOREGROUND_SERVICE and FOREGROUND_SERVICE_MEDIA_PROJECTION',
+		'MANAGE_EXTERNAL_STORAGE, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PROJECTION, INTERNET, ' +
+		'ACCESS_NETWORK_STATE and ACCESS_COARSE_LOCATION',
 		perms.join(', ') || 'none');
 
 	/* the home-screen capture: one foreground service, of type mediaProjection, not
@@ -872,6 +893,10 @@ head('E. Built - wallpaper.html and the Android manifest');
 		'the projection is asked for only once CaptureService is in the foreground (API 29+), and its callback is registered before the virtual display');
 	check(/<service[^>]*android:name="\.LockJob"[^>]*android:permission="android\.permission\.BIND_JOB_SERVICE"/.test(bare),
 		'the lock-picture refresh job is a service guarded by BIND_JOB_SERVICE');
+	check(/<service[^>]*android:name="\.WeatherJob"[^>]*android:permission="android\.permission\.BIND_JOB_SERVICE"/.test(bare) &&
+		/<uses-feature android:name="android\.hardware\.location\.network" android:required="false"/.test(bare) &&
+		!/<uses-feature android:name="android\.hardware\.location[^"]*" android:required="true"/.test(bare),
+		'the weather job is a service guarded by BIND_JOB_SERVICE; no location hardware is required (a city can be searched for)');
 	var jobSrc = exists('android-wallpaper/java/com/lili/wallpaper/LockJob.java') ?
 		codeOnly(read('android-wallpaper/java/com/lili/wallpaper/LockJob.java')) : '';
 	check(/\.setPersisted\(\s*true\s*\)/.test(jobSrc) && /\.setPeriodic\(/.test(jobSrc),
@@ -1485,7 +1510,13 @@ head('I. Settings - every colour on the settings screen and the preview is legib
 		['a disabled switch: the knob on its track, off', 'KNOB_OFF', one('DISABLED', C.DISABLED), 3],
 		['a disabled switch: the knob on its track, on', 'KNOB_OFF', one('DISABLED_ON', C.DISABLED_ON), 3],
 		['a disabled switch: the knob on the panel', 'KNOB_OFF', panels, 3],
-		['a slider knob on the panel', 'KNOB', panels, 3]
+		['a slider knob on the panel', 'KNOB', panels, 3],
+		/* the weather's city field (WeatherPanel, SettingsActivity.field): a DIALOG face, EDGE outline (checked above) */
+		['the city field\'s text on its face', 'TEXT', one('DIALOG', C.DIALOG), 4.5],
+		['the city field\'s hint on its face', 'TEXT_DIM', one('DIALOG', C.DIALOG), 4.5],
+		['the city field\'s selected text (RIPPLE over its face)', 'TEXT',
+			[{ name: 'RIPPLE over DIALOG', c: over(C.RIPPLE, C.DIALOG) }], 4.5],
+		['the city field\'s cursor on its face', 'KNOB', one('DIALOG', C.DIALOG), 3]
 	];
 	PAIRS.forEach(function (p) {
 		var w = worst(C[p[1]], p[2]);
@@ -1528,7 +1559,9 @@ head('I. Settings - every colour on the settings screen and the preview is legib
 			['paint(', 'setTextColor(', 'setBackground(', 'setBackgroundTintList(null)']],
 		['Switch', 'static Switch toggle(Context', [], ['setTextColor(', 'setThumbDrawable(', 'setTrackDrawable(', 'setBackground(']],
 		['SeekBar', 'private SeekBar slider(', [], ['setProgressTintList(', 'setProgressBackgroundTintList(', 'setThumbTintList(']],
-		['TextView', 'static TextView text(Context', [], ['setTextColor(']]
+		['TextView', 'static TextView text(Context', [], ['setTextColor(']],
+		['EditText', 'static EditText field(Context', [],
+			['setTextColor(', 'setHintTextColor(', 'setHighlightColor(', 'setBackground(', 'setBackgroundTintList(null)']]
 	];
 	FACTORIES.forEach(function (f) {
 		var n = (code.match(new RegExp('new ' + f[0] + '\\(', 'g')) || []).length;
@@ -1682,8 +1715,23 @@ head('I. Settings - every colour on the settings screen and the preview is legib
 	var back = GONE.filter(function (k) { return en.indexOf(k) >= 0 || new RegExp('R\\.string\\.' + k + '\\b').test(javaAll); });
 	check(!back.length, 'the old mode buttons, the restore section, the see-through status line, "Apply and set as wallpaper" ' +
 		'and the switches\' "previous wallpaper" line are gone (strings and code)', back.join(' '));
-	check(!/EXTRA_SET_HOME/.test(javaAll) && (code.match(/\btoggle\(/g) || []).length === 1,
-		'the settings screen has no switch of its own any more (they are the preview\'s plan); no "set as wallpaper" extra');
+	var panelJava = java('WeatherPanel.java');
+	check(!/EXTRA_SET_HOME/.test(javaAll) && (code.match(/\btoggle\(/g) || []).length === 1 &&
+		(panelJava.match(/SettingsActivity\.toggle\(/g) || []).length === 1 &&
+		/SettingsActivity\.toggle\(c, R\.string\.weather_real\)/.test(panelJava),
+		'the settings screen\'s only switch is Real weather (WeatherPanel); Home and Lock are the preview\'s plan; no "set as wallpaper" extra');
+
+	/* The Weather section: the factories and the screen's own dialog, nothing of its own */
+	var wControls = panelJava.match(/new (Button|TextView|EditText|Switch|SeekBar|CheckBox|ToggleButton|RadioButton|AlertDialog(\.Builder)?)\(/g) || [];
+	var wHex = panelJava.match(/0x[0-9A-Fa-f]{6,8}\b/g) || [];
+	var wColor = panelJava.match(COLOR_SRC) || [];
+	check(panelJava.length > 0 && !wControls.length && !wHex.length && !wColor.length &&
+		!/\.setAlpha\(|\.setTextColor\(|\.setBackground|\.setHintTextColor\(/.test(panelJava) &&
+		(panelJava.match(/SettingsActivity\.field\(/g) || []).length === 1 &&
+		/activity\.newDialog\(\)/.test(panelJava) && /activity\.dialogBox\(/.test(panelJava) && /activity\.open\(/.test(panelJava) &&
+		/new WeatherPanel\(this\)/.test(code),
+		'the Weather section (WeatherPanel) makes no control, colour or dialog of its own: the factories, and the screen\'s dialog for the search results',
+		wControls.concat(wHex, wColor).join(' '));
 
 	/* The lock-screen picture is blocked: nothing may turn lock mode on. Prefs.migrate()
 	 * only carries an existing one over from an earlier build, and LockPicture and
@@ -1815,6 +1863,555 @@ head('I. Settings - every colour on the settings screen and the preview is legib
 	check(cKey && cKey.toUpperCase() === 'FFFF00FF' && /follows && Chroma\.on\(\)\) canvas\.drawColor\(Chroma\.KEY\)/.test(lv) &&
 		/Chroma\.on\(\)\) c\.drawColor\(Chroma\.KEY\)/.test(java('LiliWallpaper.java')),
 		'the key is pure magenta (#FF00FF), drawn by the wallpaper\'s views and by an engine drawing flat; the preview of a draft never keys');
+})();
+
+/* ================================================================== *
+ *  J. Real weather                                                    *
+ * ================================================================== */
+
+head('J. Weather - the real forecast as her sky: both sources, the mapping, the hour, the sun, the fallbacks; the Java side read statically');
+(function () {
+	var FIX = 'tools/fixtures/';
+	var FILES = ['open-meteo-forecast-berlin.json', 'met-compact-berlin.json', 'open-meteo-geocoding-berlin.json'];
+	var lost = FILES.filter(function (f) { return !exists(FIX + f); });
+	if (lost.length) { check(false, 'the captured fixtures are in tools/fixtures/', 'missing: ' + lost.join(', ')); return; }
+
+	/* The phone's clock in Berlin: the fixtures' own zone, and one with DST.
+	 * Node takes a new TZ at once, in every vm context too. */
+	var savedTZ = process.env.TZ;
+	process.env.TZ = 'Europe/Berlin';
+	try {
+		weather();
+	} finally {
+		if (savedTZ === undefined) delete process.env.TZ; else process.env.TZ = savedTZ;
+	}
+
+	function weather() {
+		var HOUR = 3600000, MIN = 60000;
+		check(new Date(2026, 2, 29, 12).getTimezoneOffset() === -120 && new Date(2026, 2, 28, 12).getTimezoneOffset() === -60,
+			'group J runs on a Berlin clock (CET, CEST from 29 March 2026)',
+			'offsets ' + new Date(2026, 2, 28, 12).getTimezoneOffset() + ' / ' + new Date(2026, 2, 29, 12).getTimezoneOffset());
+
+		var OM = read(FIX + FILES[0]), MET = read(FIX + FILES[1]), GEO = read(FIX + FILES[2]);
+		var OMJ = JSON.parse(OM), METJ = JSON.parse(MET), GEOJ = JSON.parse(GEO);
+		function servedAt(f) {
+			var m = /^Date: (.+)$/m.exec(exists(FIX + f) ? read(FIX + f) : '');
+			return m ? Date.parse(m[1]) : 0;
+		}
+		/* fetched when the server said it answered */
+		var OM_AT = servedAt('open-meteo-forecast-berlin.headers.txt');
+		var MET_AT = servedAt('met-compact-berlin.headers.txt');
+		check(OM_AT > 0 && MET_AT > 0 && OMJ.hourly && METJ.properties && GEOJ.results,
+			'the fixtures are real responses: Open-Meteo forecast and geocoding, MET Norway compact, for Berlin',
+			new Date(OM_AT).toISOString() + ', ' + OMJ.hourly.time.length + ' Open-Meteo hours, ' +
+			METJ.properties.timeseries.length + ' MET entries, ' + GEOJ.results.length + ' places');
+		function omData(at2) { return { source: 'open-meteo', body: OM, lat: 52.52, lon: 13.41, fetchedAt: at2 === undefined ? OM_AT : at2, place: 'Berlin, Germany' }; }
+		function metData(at2) { return { source: 'met', body: MET, lat: 52.52, lon: 13.41, fetchedAt: at2 === undefined ? MET_AT : at2, place: 'Berlin, Germany' }; }
+
+		/* a made-up Open-Meteo response: n hours from `start`, f(i) -> {code, temp, wind, pressure} */
+		function omBody(start, n, f) {
+			var h = { time: [], temperature_2m: [], weather_code: [], wind_speed_10m: [], wind_direction_10m: [],
+			          relative_humidity_2m: [], pressure_msl: [], precipitation: [], is_day: [] };
+			for (var i = 0; i < n; i++) {
+				var v = f(i);
+				h.time.push((start + i * HOUR) / 1000);
+				h.temperature_2m.push(v.temp);
+				h.weather_code.push(v.code);
+				h.wind_speed_10m.push(v.wind === undefined ? 2 : v.wind);
+				h.wind_direction_10m.push(200);
+				h.relative_humidity_2m.push(70);
+				h.pressure_msl.push(v.pressure === undefined ? 1013 : v.pressure);
+				h.precipitation.push(0);
+				h.is_day.push(1);
+			}
+			return JSON.stringify({ hourly: h });
+		}
+		function synth(lat, lon, start, n, f, fetched) {
+			return { source: 'open-meteo', body: omBody(start, n, f), lat: lat, lon: lon,
+			         fetchedAt: fetched === undefined ? start : fetched, place: 'test' };
+		}
+		function clockOf(d) { return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; }
+		function hm(ms, offsetH) {
+			var d = new Date(ms + (offsetH || 0) * HOUR);
+			return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
+		}
+
+		var p = makePage({ upTo: 'src/wallpaper/forecast.js', seed: 501 });
+		var F = p.sandbox.Forecast, S = p.sandbox.Sky;
+
+		/* ---- the mapping: typed in here separately from forecast.js on purpose ---- */
+		var WMO_SPEC = {
+			0: ['skc', null, 0, false], 1: ['bkn', null, 0, false], 2: ['bkn', null, 0, false], 3: ['ovc', null, 0, false],
+			45: ['ovc', null, 0, false], 48: ['ovc', null, 0, false],
+			51: ['ovc', 'ra', -1, false], 53: ['ovc', 'ra', -1, false], 55: ['ovc', 'ra', -1, false],
+			56: ['ovc', 'ra_sn', -1, false], 57: ['ovc', 'ra_sn', -1, false],
+			61: ['ovc', 'ra', -1, false], 63: ['ovc', 'ra', 0, false], 65: ['ovc', 'ra', 1, false],
+			66: ['ovc', 'ra_sn', -1, false], 67: ['ovc', 'ra_sn', 1, false],
+			71: ['ovc', 'sn', -1, false], 73: ['ovc', 'sn', 0, false], 75: ['ovc', 'sn', 1, false], 77: ['ovc', 'sn', -1, false],
+			80: ['bkn', 'ra', -1, false], 81: ['bkn', 'ra', 0, false], 82: ['bkn', 'ra', 1, false],
+			85: ['bkn', 'sn', -1, false], 86: ['bkn', 'sn', 1, false],
+			95: ['ovc', 'ra', 0, true], 96: ['ovc', 'ra', 0, true], 99: ['ovc', 'ra', 1, true]
+		};
+		function same(w, spec) {
+			return !!w && w.sky === spec[0] && w.precip === spec[1] && w.intensity === spec[2] && w.isThunder === spec[3];
+		}
+		var wmoBad = [];
+		Object.keys(WMO_SPEC).forEach(function (c) {
+			var w = F.wmo(+c, 0, 10);
+			if (!same(w, WMO_SPEC[c])) wmoBad.push(c + ' -> ' + JSON.stringify(w));
+		});
+		var unknown = [[4, 0, 10, ['bkn', null, 0, false]], [42, 1.5, -2, ['ovc', 'sn', 0, false]], [null, 0.3, 4, ['ovc', 'ra', 0, false]]];
+		unknown.forEach(function (u) { if (!same(F.wmo(u[0], u[1], u[2]), u[3])) wmoBad.push('unknown ' + u[0]); });
+		check(!wmoBad.length, 'every WMO code (' + Object.keys(WMO_SPEC).length + ': clear, cloud, fog, drizzle, freezing, rain, snow, ' +
+			'grains, showers, thunderstorms) maps as the table says; an unknown one goes by its precipitation', wmoBad.join('; '));
+
+		/* every symbol MET Norway documents, read here by its words */
+		var MET_CODES = ['clearsky', 'cloudy', 'fair', 'fog', 'heavyrain', 'heavyrainandthunder', 'heavyrainshowers',
+			'heavyrainshowersandthunder', 'heavysleet', 'heavysleetandthunder', 'heavysleetshowers', 'heavysleetshowersandthunder',
+			'heavysnow', 'heavysnowandthunder', 'heavysnowshowers', 'heavysnowshowersandthunder', 'lightrain', 'lightrainandthunder',
+			'lightrainshowers', 'lightrainshowersandthunder', 'lightsleet', 'lightsleetandthunder', 'lightsleetshowers', 'lightsnow',
+			'lightsnowandthunder', 'lightsnowshowers', 'lightssleetshowersandthunder', 'lightssnowshowersandthunder', 'partlycloudy',
+			'rain', 'rainandthunder', 'rainshowers', 'rainshowersandthunder', 'sleet', 'sleetandthunder', 'sleetshowers',
+			'sleetshowersandthunder', 'snow', 'snowandthunder', 'snowshowers', 'snowshowersandthunder'];
+		var DRY = { clearsky: 'skc', fair: 'bkn', partlycloudy: 'bkn', cloudy: 'ovc', fog: 'ovc' };
+		function metWant(code) {
+			var base = code.replace(/_(day|night|polartwilight)$/, '');
+			var precip = base.indexOf('sleet') !== -1 ? 'ra_sn' : base.indexOf('snow') !== -1 ? 'sn' :
+				base.indexOf('rain') !== -1 ? 'ra' : null;
+			var sky = precip ? (base.indexOf('showers') !== -1 ? 'bkn' : 'ovc') : (DRY[base] || 'bkn');
+			var intensity = precip ? (base.indexOf('light') === 0 ? -1 : base.indexOf('heavy') === 0 ? 1 : 0) : 0;
+			return [sky, precip, intensity, base.indexOf('thunder') !== -1];
+		}
+		var metBad = [], families = {};
+		MET_CODES.forEach(function (c) {
+			['', '_day', '_night', '_polartwilight'].forEach(function (sfx) {
+				var w = F.metSymbol(c + sfx);
+				if (!same(w, metWant(c))) metBad.push(c + sfx + ' -> ' + JSON.stringify(w));
+			});
+			families[c.replace(/andthunder$/, '').replace(/^(lights|light|heavy)(?=s?(rain|sleet|snow))/, '').replace(/^s(?=(sleet|snow))/, '')] = 1;
+		});
+		if (!same(F.metSymbol('somethingnew_day'), ['bkn', null, 0, false])) metBad.push('an unknown symbol');
+		check(!metBad.length, 'every MET symbol (' + MET_CODES.length + ' codes, ' + Object.keys(families).length +
+			' families, with _day/_night/_polartwilight) maps: light/heavy, showers, sleet, thunder', metBad.slice(0, 4).join('; '));
+
+		/* ---- the normalisers, on the real responses ---- */
+		var oh = OMJ.hourly, om = F.fromOpenMeteo(OMJ), omBad = [];
+		if (om.length !== oh.time.length) omBad.push(om.length + ' entries for ' + oh.time.length + ' hours');
+		om.forEach(function (e, i) {
+			if (e.t !== oh.time[i] * 1000) omBad.push(i + ': t');
+			if (i && e.t - om[i - 1].t !== HOUR) omBad.push(i + ': not hourly');
+			if (e.code !== 'wmo:' + oh.weather_code[i] || !same(e, WMO_SPEC[oh.weather_code[i]])) omBad.push(i + ': code ' + oh.weather_code[i]);
+			if (e.temp !== oh.temperature_2m[i] || e.wind !== oh.wind_speed_10m[i] || e.windAngle !== oh.wind_direction_10m[i] ||
+				e.humidity !== oh.relative_humidity_2m[i] || e.pressure !== oh.pressure_msl[i]) omBad.push(i + ': values');
+		});
+		var omCodes = {};
+		oh.weather_code.forEach(function (c) { omCodes[c] = 1; });
+		check(!omBad.length, 'Open-Meteo, the Berlin fixture: ' + om.length + ' hourly entries, every field and code carried over ' +
+			'(codes ' + Object.keys(omCodes).join(' ') + ')', omBad.slice(0, 4).join('; '));
+
+		var ts = METJ.properties.timeseries, met = F.fromMet(METJ), want = [], metNBad = [], syms = {}, skyless = 0;
+		ts.forEach(function (x, i) {
+			var t0 = Date.parse(x.time), d = x.data;
+			var n = i + 1 < ts.length ? (Date.parse(ts[i + 1].time) - t0) / HOUR : (d.next_1_hours ? 1 : 6);
+			var next = d.next_1_hours || d.next_6_hours || d.next_12_hours;
+			if (!next) { skyless++; return; }          /* the last one: a temperature, no sky - left out */
+			var sym = next.summary.symbol_code;
+			syms[sym] = 1;
+			for (var k = 0; k < n; k++) want.push({ t: t0 + k * HOUR, sym: sym, d: d.instant.details });
+		});
+		if (met.length !== want.length) metNBad.push(met.length + ' entries, want ' + want.length);
+		met.forEach(function (e, i) {
+			var w = want[i];
+			if (!w) return;
+			if (e.t !== w.t) metNBad.push(i + ': t');
+			if (i && e.t - met[i - 1].t !== HOUR) metNBad.push(i + ': not hourly');
+			if (e.code !== 'met:' + w.sym || !same(e, metWant(w.sym))) metNBad.push(i + ': ' + w.sym);
+			if (e.temp !== w.d.air_temperature || e.wind !== w.d.wind_speed || e.windAngle !== w.d.wind_from_direction ||
+				e.humidity !== w.d.relative_humidity || e.pressure !== w.d.air_pressure_at_sea_level) metNBad.push(i + ': values');
+		});
+		check(!metNBad.length, 'MET Norway, the Berlin fixture: ' + ts.length + ' entries (hourly, then 6-hourly) spread into ' +
+			met.length + ' hours (' + skyless + ' without a sky left out), symbols ' + Object.keys(syms).join(' '),
+			metNBad.slice(0, 4).join('; '));
+
+		/* ---- the current hour: by time, across midnight and both DST changes ---- */
+		var mStart = new Date(2026, 10, 20, 21).getTime();
+		F.load(synth(52.52, 13.41, mStart, 6, function (i) { return { code: 3, temp: i }; }));
+		var m1 = F.now(new Date(2026, 10, 20, 23, 59, 59)), m2 = F.now(new Date(2026, 10, 21, 0, 0, 0)),
+		    m3 = F.now(new Date(2026, 10, 21, 0, 30)), mBefore = F.now(new Date(2026, 10, 20, 20, 59)),
+		    mAfter = F.now(new Date(2026, 10, 21, 3, 0));
+		var sun20 = F.sun(52.52, 13.41, new Date(2026, 10, 20, 12)), sun21 = F.sun(52.52, 13.41, new Date(2026, 10, 21, 12));
+		check(m1 && m2 && m3 && m1.temp === 2 && m2.temp === 3 && m3.temp === 3 && !mBefore && !mAfter &&
+			m1.sunriseMin === sun20.riseMin && m3.sunriseMin === sun21.riseMin && sun20.riseMin !== sun21.riseMin &&
+			m1.isNight && m3.isNight && m3.minutesToSunrise === sun21.riseMin - 30,
+			'midnight: 23:59:59 is the 23:00 hour, 00:00 the next one, with the next day\'s sunrise; before and after the series: none',
+			(m1 ? m1.temp : '-') + '/' + (m2 ? m2.temp : '-') + ', sunrise ' + sun20.riseMin + ' -> ' + sun21.riseMin);
+
+		var spring = Date.UTC(2026, 2, 28, 23);          /* 00:00 CET, 29 March; 02:00 does not exist */
+		F.load(synth(52.52, 13.41, spring, 7, function (i) { return { code: 0, temp: i }; }));
+		var s1 = F.now(new Date(2026, 2, 29, 1, 59)), s2 = F.now(new Date(2026, 2, 29, 3, 30)), s3 = F.now(new Date(2026, 2, 29, 4, 0));
+		var r28 = F.sun(52.52, 13.41, new Date(2026, 2, 28, 12)).riseMin, r29 = F.sun(52.52, 13.41, new Date(2026, 2, 29, 12)).riseMin;
+		var autumn = Date.UTC(2026, 9, 24, 23);          /* 01:00 CEST, 25 October; 02:00 comes twice */
+		F.load(synth(52.52, 13.41, autumn, 4, function (i) { return { code: 0, temp: i }; }));
+		var dA = new Date(Date.UTC(2026, 9, 25, 0, 30)), dB = new Date(Date.UTC(2026, 9, 25, 1, 30));
+		var a1 = F.now(dA), a2 = F.now(dB);
+		check(s1 && s2 && s3 && s1.temp === 1 && s2.temp === 2 && s3.temp === 3 && r29 - r28 >= 55 && r29 - r28 <= 60 &&
+			a1 && a2 && a1.temp === 1 && a2.temp === 2 && dA.getHours() === 2 && dB.getHours() === 2,
+			'DST: 01:59 CET then 03:30 CEST are consecutive hours; the two 02:30s in October are two different hours; ' +
+			'sunrise moves an hour on the clock',
+			'spring ' + [s1, s2, s3].map(function (x) { return x ? x.temp : '-'; }).join(',') + ', sunrise ' + r28 + ' -> ' + r29 +
+			', autumn ' + (a1 ? a1.temp : '-') + ',' + (a2 ? a2.temp : '-'));
+
+		/* ---- the sun ---- */
+		/* An independent reference: the US Naval Observatory's sunrise algorithm
+		 * (Almanac for Computers, 1990), not NOAA's. UTC ms, or null. */
+		function usno(lat, lon, y, mo, d, rising) {
+			var R = Math.PI / 180;
+			var N = Math.floor(275 * mo / 9) - Math.floor((mo + 9) / 12) * (1 + Math.floor((y - 4 * Math.floor(y / 4) + 2) / 3)) + d - 30;
+			var lngHour = lon / 15, t = N + ((rising ? 6 : 18) - lngHour) / 24;
+			var M = 0.9856 * t - 3.289;
+			var L = ((M + 1.916 * Math.sin(M * R) + 0.020 * Math.sin(2 * M * R) + 282.634) % 360 + 360) % 360;
+			var RA = ((Math.atan(0.91764 * Math.tan(L * R)) / R) % 360 + 360) % 360;
+			RA = (RA + Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90) / 15;
+			var sinDec = 0.39782 * Math.sin(L * R), cosDec = Math.cos(Math.asin(sinDec));
+			var cosH = (Math.cos(90.833 * R) - sinDec * Math.sin(lat * R)) / (cosDec * Math.cos(lat * R));
+			if (cosH > 1 || cosH < -1) return null;
+			var H = (rising ? 360 - Math.acos(cosH) / R : Math.acos(cosH) / R) / 15;
+			var UT = ((H + RA - 0.06571 * t - 6.622 - lngHour) % 24 + 24) % 24;
+			return Date.UTC(y, mo - 1, d) + UT * HOUR;
+		}
+		var omSun = [], omWorst = 0;
+		OMJ.daily.time.forEach(function (t, i) {
+			var ev = F.sunEvents(52.52, 13.41, t * 1000 + 12 * HOUR);
+			var sn = F.sun(52.52, 13.41, new Date(t * 1000 + 12 * HOUR));
+			var d = [Math.abs(ev.rise - OMJ.daily.sunrise[i] * 1000) / MIN, Math.abs(ev.set - OMJ.daily.sunset[i] * 1000) / MIN,
+			         Math.abs(sn.riseMin - clockOf(new Date(OMJ.daily.sunrise[i] * 1000))),
+			         Math.abs(sn.setMin - clockOf(new Date(OMJ.daily.sunset[i] * 1000)))];
+			omWorst = Math.max.apply(null, [omWorst].concat(d));
+			omSun.push(hm(OMJ.daily.sunrise[i] * 1000, 1) + '-' + hm(OMJ.daily.sunset[i] * 1000, 1));
+		});
+		check(omWorst <= 3, 'Berlin: sunrise and sunset within 3 min of Open-Meteo\'s own for the fixture\'s three days (' +
+			omSun.join(', ') + ' CET), on the phone\'s clock too', 'worst ' + omWorst.toFixed(2) + ' min');
+		var refWorst = { Berlin: 0, Minsk: 0 }, minskLine = [];
+		[['Berlin', 52.52, 13.41], ['Minsk', 53.9, 27.5667]].forEach(function (pl) {
+			for (var mo = 0; mo < 12; mo++) {
+				[5, 21].forEach(function (day) {
+					var ev = F.sunEvents(pl[1], pl[2], new Date(2026, mo, day, 12).getTime());
+					var r = usno(pl[1], pl[2], 2026, mo + 1, day, true), s = usno(pl[1], pl[2], 2026, mo + 1, day, false);
+					refWorst[pl[0]] = Math.max(refWorst[pl[0]], Math.abs(ev.rise - r) / MIN, Math.abs(ev.set - s) / MIN);
+					if (pl[0] === 'Minsk' && day === 21 && (mo === 5 || mo === 11)) minskLine.push(hm(ev.rise, 3) + '-' + hm(ev.set, 3));
+				});
+			}
+		});
+		check(refWorst.Berlin <= 3 && refWorst.Minsk <= 3,
+			'Berlin and Minsk: sunrise and sunset within 3 min of the independent USNO algorithm on 24 days of 2026 ' +
+			'(Minsk 21 June ' + minskLine[0] + ', 21 December ' + minskLine[1] + ', UTC+3)',
+			'worst ' + refWorst.Berlin.toFixed(2) + ' / ' + refWorst.Minsk.toFixed(2) + ' min');
+
+		var pd = F.sun(78.22, 15.65, new Date(2026, 5, 21, 12)), pn = F.sun(78.22, 15.65, new Date(2026, 11, 21, 12)),
+		    pm = F.sun(78.22, 15.65, new Date(2026, 2, 15, 12));
+		F.load(synth(78.22, 15.65, new Date(2026, 5, 21, 0).getTime(), 24, function () { return { code: 0, temp: 5 }; }));
+		var dayMid = F.now(new Date(2026, 5, 21, 0, 30)), dayNoon = F.now(new Date(2026, 5, 21, 12, 0));
+		F.load(synth(78.22, 15.65, new Date(2026, 11, 21, 0).getTime(), 24, function () { return { code: 3, temp: -15 }; }));
+		var nightNoon = F.now(new Date(2026, 11, 21, 12, 0));
+		check(pd.polar === 'day' && pn.polar === 'night' && pm.polar === '' && pm.riseMin < pm.setMin &&
+			dayMid && dayNoon && nightNoon && !dayMid.isNight && !dayNoon.isNight && nightNoon.isNight &&
+			dayMid.sunriseMin === null && dayMid.sunsetMin === null && dayMid.minutesToSunrise === null && nightNoon.sunsetMin === null,
+			'78 N: polar day on 21 June (day at midnight), polar night on 21 December (night at noon), no sunrise in the payload; ' +
+			'an ordinary day on 15 March', 'March ' + pm.riseMin + '-' + pm.setMin);
+		F.load(synth(35.68, 139.69, new Date(2026, 10, 20, 0).getTime(), 24, function () { return { code: 0, temp: 15 }; }));
+		var tNoon = F.now(new Date(2026, 10, 20, 12, 0)), tEarly = F.now(new Date(2026, 10, 20, 3, 0));
+		check(tNoon && tEarly && tNoon.sunriseMin === null && tNoon.isNight === true && tEarly.isNight === false,
+			'a place whose daylight straddles the phone\'s midnight (Tokyo, from Berlin): no clock minutes, night by the sun\'s height');
+
+		/* ---- stale, empty, uncovered: none ---- */
+		F.load(omData());
+		var o47 = F.now(new Date(OM_AT + 47 * HOUR)), o49 = F.now(new Date(OM_AT + 49 * HOUR));
+		var oPre = F.now(new Date(oh.time[0] * 1000 - MIN)), oPost = F.now(new Date(oh.time[oh.time.length - 1] * 1000 + HOUR));
+		F.load(metData());
+		var t47 = F.now(new Date(MET_AT + 47 * HOUR)), t49 = F.now(new Date(MET_AT + 49 * HOUR));
+		check(!!o47 && o49 === null && oPre === null && oPost === null && !!t47 && t49 === null,
+			'fetched 47 h ago: used; 49 h ago: stale, none (both sources); before or after the series: none');
+		var GARBAGE = [null, undefined, '', '{', 'null', {}, { source: 'open-meteo', body: '{}' },
+			{ source: 'open-meteo', body: '{"hourly":{"time":[]}}' }, { source: 'other', body: OM },
+			{ source: 'met', body: '{"properties":{"timeseries":[]}}' },
+			{ source: 'met', body: '{"properties":{"timeseries":[{"time":"2026-11-20T13:00:00Z","data":{}}]}}' }];
+		var took = GARBAGE.filter(function (g) { return F.load(g) || F.loaded() || F.now(new Date(OM_AT)) !== null; });
+		check(!took.length, 'nothing usable, nothing kept: ' + GARBAGE.length + ' empty, broken or foreign inputs refused',
+			took.map(function (g) { return JSON.stringify(g); }).join(' | ').slice(0, 160));
+
+		/* ---- derive()'s shape ---- */
+		var wsrc = codeOnly(read('src/core/weather.js'));
+		var dblock = /return\s*\{([\s\S]*?)\}\s*;/.exec(wsrc.slice(wsrc.indexOf('function derive(')));
+		var keys = [], kre = /^\s*([A-Za-z_$][\w$]*)\s*:/gm, km;
+		while (dblock && (km = kre.exec(dblock[1]))) keys.push(km[1]);
+		var shapeBad = [], hoursSeen = 0;
+		[[omData(), OM_AT], [metData(), MET_AT]].forEach(function (src) {
+			F.load(src[0]);
+			for (var t = src[1]; t < src[1] + 47 * HOUR; t += HOUR) {
+				var d = new Date(t), w = F.now(d), m = d.getHours() * 60 + d.getMinutes();
+				hoursSeen++;
+				if (!w) { shapeBad.push(src[0].source + ' ' + d.toISOString() + ': none'); continue; }
+				if (Object.keys(w).join() !== keys.join()) shapeBad.push('keys ' + Object.keys(w).join());
+				if (typeof w.code !== 'string' || ['skc', 'bkn', 'ovc'].indexOf(w.sky) === -1 ||
+					[null, 'ra', 'sn', 'ra_sn'].indexOf(w.precip) === -1 || [-1, 0, 1].indexOf(w.intensity) === -1 ||
+					typeof w.isThunder !== 'boolean' || typeof w.isNight !== 'boolean' ||
+					!(w.temp === null || Math.round(w.temp) === w.temp) || typeof w.wind !== 'number' ||
+					typeof w.windAngle !== 'number' || typeof w.humidity !== 'number' ||
+					!(w.pressure === null || typeof w.pressure === 'number') || typeof w.pressureTrend !== 'number' ||
+					w.moonCode !== null || typeof w.sunriseMin !== 'number' || typeof w.sunsetMin !== 'number' ||
+					w.minutesToSunrise !== w.sunriseMin - m || w.minutesToSunset !== w.sunsetMin - m ||
+					w.isNight !== (m < w.sunriseMin || m > w.sunsetMin)) shapeBad.push(src[0].source + ' ' + d.toISOString() + ' ' + JSON.stringify(w));
+			}
+		});
+		/* the pressure in mm Hg, and its trend over the next three hours, from the response itself */
+		F.load(omData());
+		var i14 = oh.time.indexOf(Math.floor(OM_AT / HOUR) * 3600), w14 = F.now(new Date(OM_AT));
+		var mm = function (j) { return Math.round(oh.pressure_msl[j] * 0.750062); };
+		if (!w14 || w14.pressure !== mm(i14) || w14.pressureTrend !== mm(i14 + 3) - mm(i14) || w14.temp !== Math.round(oh.temperature_2m[i14])) {
+			shapeBad.push('values at the fetch hour: ' + JSON.stringify(w14));
+		}
+		check(keys.length > 10 && !shapeBad.length, 'the payload is derive()\'s: its ' + keys.length + ' keys in its order, its types, ' +
+			'night from the sunrise and sunset it carries, pressure in mm Hg with the next 3 hours\' trend (' + hoursSeen + ' hours of both fixtures)',
+			shapeBad.slice(0, 2).join('; '));
+
+		/* ---- the whole page ---- */
+		function bootJ(opts) {
+			var pg = makePage(opts);
+			pg.run('var __wx = []; Bus.on("weather", function (w) { __wx.push({ code: w.code, at: Date.now(), key: Sky.material(w) }); });');
+			pg.t0 = pg.now;
+			pg.fire('load');
+			return pg;
+		}
+		function emitted(pg) { return pg.run('__wx.slice()'); }
+		function faultless(pg) {
+			var f = pg.run('Guard.faults()');
+			return f === 0 && !pg.uncaught.length ? '' : f + ' faults ' + pg.warns.slice(0, 2).join(' | ') + ' ' + pg.uncaught.slice(0, 2).join(' | ');
+		}
+
+		/* her weather is published again only when something she reacts to changed */
+		var start9 = OM_AT + 30 * MIN;
+		var g = bootJ({ seed: 510, start: start9, bridge: { forecast: JSON.stringify(omData()) } });
+		g.run('Wall.show()');
+		var bootReal = g.run('Sky.kind()') === 'real' && g.run('Cat.weather() === Sky.current()') && g.forecastAsked === 1;
+		g.advance(start9 + 3 * HOUR);
+		var ems = emitted(g);
+		F.load(omData());
+		var expected = 1, prevKey = S.material(F.now(new Date(start9)));
+		for (var t = Math.ceil(start9 / MIN) * MIN + 1000; t <= start9 + 3 * HOUR; t += MIN) {
+			var k = S.material(F.now(new Date(t)));
+			if (k !== prevKey) { expected++; prevKey = k; }
+		}
+		var repeats = 0;
+		for (var e = 1; e < ems.length; e++) if (ems[e].key === ems[e - 1].key) repeats++;
+		var nights = ems.filter(function (x) { return /\|true\|[^|]*\|[^|]*\|[^|]*$/.test(x.key); }).length;
+		g.run('Wall.forecast(' + JSON.stringify(JSON.stringify(omData())) + ')');
+		var afterSame = emitted(g).length;
+		check(bootReal && ems.length === expected && !repeats && ems.length <= 8 && nights >= 1 && afterSame === ems.length &&
+			ems.every(function (x) { return /^wmo:/.test(x.code); }) && !faultless(g),
+			'three hours of real weather: published at boot (asked once) and then only on a material change - ' + ems.length +
+			' payloads in 180 minute ticks, sunset among them; the same forecast again publishes nothing',
+			ems.map(function (x) { return x.code + '@' + hm(x.at, 1); }).join(' ') + ' ' + faultless(g));
+
+		/* Real weather off: Forecast is never consulted */
+		[['the bridge says "" (Real weather off, or no place)', { forecast: '' }], ['a bridge without forecast()', {}],
+		 ['no bridge (a browser tab)', null]].forEach(function (c, ci) {
+			var pg = makePage({ seed: 520 + ci, start: OM_AT + HOUR, bridge: c[1] });
+			pg.run('var __fc = 0; ["load", "now", "clear", "describe", "series", "sun", "source", "loaded"].forEach(function (k) {' +
+				' var f = Forecast[k]; Forecast[k] = function () { __fc++; return f.apply(null, arguments); }; });');
+			pg.fire('load');
+			pg.run('Wall.show()');
+			pg.advance(pg.now + HOUR);
+			pg.run('Wall.hide()');
+			pg.advance(pg.now + 4 * HOUR);
+			pg.run('Wall.show(); for (var i = 0; i < 5; i++) { Plan.skip(null); Plan.due(new Date()); }');
+			pg.advance(pg.now + 10 * MIN);
+			check(pg.run('__fc') === 0 && pg.run('Sky.kind()') !== 'real' && /^wall:/.test(pg.run('Cat.weather().code')) &&
+				(c[1] && c[1].forecast !== undefined ? pg.forecastAsked === 1 : true) && !faultless(pg),
+				'without a forecast - ' + c[0] + ' - Forecast is never consulted, through 5 hours, a show after 4 h away and the sky\'s redraws',
+				pg.run('__fc') + ' calls, sky ' + pg.run('Sky.kind()') + ' ' + faultless(pg));
+		});
+
+		/* the redraws leave real weather alone; 48 h after the fetch it gives way to the invented sky */
+		var r = bootJ({ seed: 530, start: OM_AT + HOUR, bridge: { forecast: JSON.stringify(omData()) } });
+		r.run('Wall.show()');
+		r.advance(r.now + MIN);
+		var n0 = emitted(r).length;
+		r.run('for (var i = 0; i < 5; i++) { Sky.redraw(new Date()); Plan.skip(null); Plan.due(new Date()); }');
+		var afterRedraws = emitted(r).length, kind1 = r.run('Sky.kind()');
+		r.run('Wall.hide()');
+		r.advance(r.now + 4 * HOUR);
+		r.run('Wall.show()');
+		r.advance(r.now + 2000);
+		var kind2 = r.run('Sky.kind()'), allReal = emitted(r).every(function (x) { return /^wmo:/.test(x.code); });
+		r.run('Wall.hide()');
+		r.advance(OM_AT + 49 * HOUR);
+		r.run('Wall.show()');
+		r.advance(r.now + 2000);
+		var kind3 = r.run('Sky.kind()'), last = emitted(r).slice(-1)[0];
+		check(afterRedraws === n0 && kind1 === 'real' && kind2 === 'real' && allReal && kind3 !== 'real' &&
+			/^wall:/.test(last.code) && r.run('Cat.weather().code') === last.code && r.run('Wall.state().real') === false &&
+			!faultless(r),
+			'real weather survives Sky.redraw(), the shuffle\'s every-fifth arming and a show after 4 h away; ' +
+			'49 h after the fetch the invented sky is back (' + kind3 + ')', faultless(r));
+
+		/* off and on again, from the host; and MET as the source */
+		var q = bootJ({ seed: 540, start: OM_AT + HOUR, bridge: { forecast: JSON.stringify(omData()) } });
+		q.run('Wall.show()');
+		var qn = emitted(q).length;
+		q.run('Wall.forecast(null)');
+		var off = emitted(q).slice(qn), kOff = q.run('Sky.kind()');
+		q.run('Wall.forecast(' + JSON.stringify(metData()) + ')');
+		var on = emitted(q).slice(qn + off.length);
+		check(off.length === 1 && /^wall:/.test(off[0].code) && kOff !== 'real' && on.length === 1 && /^met:/.test(on[0].code) &&
+			q.run('Sky.kind()') === 'real' && q.run('Cat.weather().code') === on[0].code && !faultless(q),
+			'Wall.forecast(null) brings the invented sky back at once; Wall.forecast(MET data) makes it real again',
+			off.concat(on).map(function (x) { return x.code; }).join(' then '));
+
+		/* the lock picture's still page: the same real weather, the same outfit */
+		var st0 = new Date(2026, 0, 15, 12, 0).getTime(), signals = [];
+		var sp = makePage({ seed: 550, start: st0, hash: '#still=1', bridge: {
+			config: '{"size":60,"lift":22}', stillReady: function (j) { signals.push(String(j)); },
+			forecast: JSON.stringify(synth(53.9, 27.5667, st0 - 3 * HOUR, 12, function () { return { code: 73, temp: -3 }; }, st0 - HOUR))
+		} });
+		sp.fire('load');
+		sp.advance(sp.now + 3000);
+		var ss = signals[0] ? JSON.parse(signals[0]) : {};
+		check(signals.length === 1 && ss.sky === 'real' && ss.outfit === 'snow' && sp.run('Cat.weather().precip') === 'sn' &&
+			sp.run('Wardrobe.current()') === 'snow' && !faultless(sp),
+			'still mode (#still=1) gets the forecast too: snow in Minsk, sky "real", her snow outfit in the picture',
+			'sky ' + ss.sky + ', outfit ' + ss.outfit + ' ' + faultless(sp));
+
+		/* ---- how much of her repertoire real weather reaches ---- */
+		var rp = makePage({ upTo: 'src/wallpaper/forecast.js', seed: 560 });
+		var RF = rp.sandbox.Forecast, RS = rp.sandbox.Sky, Sh = rp.sandbox.Shuffle;
+		var cands = rp.sandbox.Episodes.planLibrary().cands.filter(function (c) { return c.weight > 0; });
+		var CONDITIONS = [
+			['clear', 4, 'mild', function () { return { code: 0, temp: 14, wind: 3 }; }],
+			['rain', 9, 'rain', function (i) { return { code: 63, temp: 10, wind: 6, pressure: 1012 - 2 * i }; }],
+			['snow', 0, 'snow', function () { return { code: 73, temp: -3, wind: 3 }; }],
+			['hot', 6, 'hot', function () { return { code: 0, temp: 27, wind: 2 }; }]
+		];
+		var reach = [], reachBad = [];
+		CONDITIONS.forEach(function (c) {
+			var real = {}, inv = {};
+			for (var day = 1; day <= 7; day++) {
+				var d0 = new Date(2026, c[1], day, 0, 0).getTime();
+				RF.load(synth(53.9, 27.5667, d0, 26, c[3], d0));
+				for (var half = 0; half < 48; half++) {
+					var date = new Date(2026, c[1], day, Math.floor(half / 2), (half % 2) * 30);
+					var wx = RF.now(date);
+					if (!wx) { reachBad.push(c[0] + ': no payload at ' + date.toISOString()); continue; }
+					Sh.eligible(cands, wx, date).forEach(function (x) { real[x.id] = 1; });
+					Sh.eligible(cands, RS.make(c[2], date), date).forEach(function (x) { inv[x.id] = 1; });
+				}
+			}
+			/* What the invented sky of the same kind reaches on the same days is the
+			 * yardstick: the real payload must reach every one of those scenes, and
+			 * at least a dozen, so she has some variety in any weather. */
+			var nr = Object.keys(real).length, ni = Object.keys(inv).length;
+			var missing = Object.keys(inv).filter(function (id) { return !real[id]; });
+			reach.push(c[0] + ' ' + nr + ' (' + Math.round(100 * nr / cands.length) + '%; invented ' + c[2] + ' ' + ni + ')');
+			if (missing.length || nr < 12) reachBad.push(c[0] + ': ' + nr + ' of ' + cands.length + ', missing ' + missing.join(' '));
+		});
+		check(!reachBad.length, 'real weather reaches every scene the invented sky of the same kind reaches (of ' + cands.length +
+			' with weight, a week of every half hour in Minsk): ' + reach.join(', '), reachBad.slice(0, 3).join('; '));
+
+		/* ---- the page itself never asks the network ---- */
+		var wallSrc = MODULES.filter(function (m) { return m.indexOf('src/wallpaper/') === 0; }).map(function (m) { return codeOnly(read(m)); }).join('\n');
+		check(!/XMLHttpRequest|(^|[^.\w$])getJSON\(|\bfetch\(|WebSocket|sendBeacon/.test(wallSrc) &&
+			!(BUILT && /api\.open-meteo\.com|api\.met\.no|geocoding-api/.test(BUILT)),
+			'the page makes no request: no XHR, fetch or forecast URL in src/wallpaper/ or the built page (Java fetches)');
+
+		/* ---- the Java side, read statically ---- */
+		var DIR = 'android-wallpaper/java/com/lili/wallpaper/';
+		function src(n) { return exists(DIR + n) ? read(DIR + n) : ''; }
+		function body(text, sig) {
+			var a = text.indexOf(sig);
+			if (a < 0) return '';
+			var open = text.indexOf('{', a), depth = 0;
+			for (var i = open; i < text.length; i++) {
+				if (text[i] === '{') depth++;
+				else if (text[i] === '}' && --depth === 0) return text.slice(open, i + 1);
+			}
+			return '';
+		}
+		var FC = src('Forecast.java'), JOB = src('WeatherJob.java'), PANEL = src('WeatherPanel.java');
+		var allJava = fs.readdirSync(path.join(ROOT, DIR)).filter(function (f) { return /\.java$/.test(f); })
+			.map(function (f) { return codeOnly(src(f)); }).join('\n');
+		var allRaw = fs.readdirSync(path.join(ROOT, DIR)).filter(function (f) { return /\.java$/.test(f); }).map(src).join('\n');
+		var getBody = body(FC, 'private static Reply get(');
+		var metBody = body(FC, 'private static Stored met(');
+		var version = read('android-wallpaper/VERSION').trim();
+		var UA = (/static final String USER_AGENT = "([^"]+)";/.exec(FC) || [])[1] || '';
+		check(UA === 'Lili/%s (+https://github.com/olegc0n/phoneForecast)' &&
+			(allJava.match(/\.openConnection\(/g) || []).length === 1 && codeOnly(getBody).indexOf('.openConnection(') !== -1 &&
+			/c\.setRequestProperty\("User-Agent", userAgent\(context\)\)/.test(getBody) &&
+			/String\.format\(Locale\.ROOT, USER_AGENT, v\)/.test(body(FC, 'static String userAgent(')) &&
+			(allRaw.match(/"User-Agent"/g) || []).length === 1 &&
+			(codeOnly(FC).match(/\bMET_URL\b/g) || []).length === 2 && /get\(app, String\.format\(Locale\.ROOT, MET_URL,/.test(metBody),
+			'the User-Agent is one constant, "' + UA.replace('%s', version) + '", set by get() - the one place a connection is ' +
+			'opened - on every request, MET\'s included');
+		check(/if \(!url\.startsWith\("https:\/\/"\)\) throw/.test(getBody) && /instanceof HttpsURLConnection/.test(getBody) &&
+			/setInstanceFollowRedirects\(false\)/.test(getBody) && /setConnectTimeout\(TIMEOUT_MS\)/.test(getBody) &&
+			/setReadTimeout\(TIMEOUT_MS\)/.test(getBody) && /TIMEOUT_MS = 10000;/.test(FC) &&
+			/"Accept-Encoding", "gzip"/.test(getBody) && /GZIPInputStream/.test(FC) &&
+			!/"http:\/\//.test(allRaw) && (FC.match(/"https:\/\/[^"]+"/g) || []).length === 3,
+			'HTTPS only (and refused otherwise), 10 s timeouts, gzip, no redirects followed');
+		var OM_URL = (/OPEN_METEO_URL = ("[^;]+);/.exec(FC) || [])[1] || '';
+		check(/latitude=%s&longitude=%s/.test(OM_URL) && /hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,pressure_msl,precipitation,is_day/.test(OM_URL) &&
+			/timeformat=unixtime/.test(OM_URL) && /wind_speed_unit=ms/.test(OM_URL) && /forecast_days=3/.test(OM_URL) &&
+			/fixed\(place\.lat, 2\), fixed\(place\.lon, 2\)/.test(body(FC, 'private static Stored openMeteo(')) &&
+			/fixed\(place\.lat, 4\), fixed\(place\.lon, 4\)/.test(metBody) &&
+			/api\.met\.no\/weatherapi\/locationforecast\/2\.0\/compact\?lat=%s&lon=%s/.test(FC) &&
+			/count=8&language=%s&format=json/.test(FC),
+			'what is sent: the coordinates rounded to 2 decimals for Open-Meteo and 4 for MET; the fixtures were asked for with the same URLs');
+		var omBodyJ = body(FC, 'private static Stored openMeteo(');
+		check(/r\.code >= 500\) throw new Fallback/.test(omBodyJ) && /catch \(IOException e\) \{\s*throw new Fallback/.test(omBodyJ) &&
+			/!openMeteoUsable\(r\.body\)\) throw new Fallback/.test(omBodyJ) && /r\.code != 200\) throw new IOException/.test(omBodyJ) &&
+			/catch \(Fallback e\) \{[\s\S]*?got = met\(app, place, old, now\)/.test(body(FC, 'private static void fetch(')) &&
+			/If-Modified-Since/.test(metBody) && /old\.expires > now/.test(metBody) && /r\.code == 304 && same/.test(metBody),
+			'MET Norway only when Open-Meteo fails (the network, a 5xx, bad JSON); its Expires respected, If-Modified-Since sent');
+		var req = body(FC, 'private static void request(');
+		var gate = req.indexOf('if (place == null || !Prefs.weatherOn(p))');
+		check(gate !== -1 && req.indexOf('return;', gate) < req.indexOf('new Thread(') && req.indexOf('new Thread(') > gate &&
+			(codeOnly(FC).match(/\bfetch\(app, place, done\)/g) || []).length === 1 && codeOnly(req).indexOf('fetch(app, place, done)') !== -1 &&
+			(codeOnly(FC).match(/\bopenMeteo\(app, /g) || []).length === 1 && (codeOnly(FC).match(/\bmet\(app, /g) || []).length === 1 &&
+			/if \(place == null \|\| !Prefs\.weatherOn\(p\)\) return "";/.test(body(FC, 'static String pageData(')) &&
+			/return Place\.current\(p\) != null && Prefs\.weatherOn\(p\);/.test(body(FC, 'static boolean enabled(')) &&
+			/if \(!Forecast\.enabled\(this\)\) \{\s*cancel\(this\);\s*return false;/.test(body(JOB, 'public boolean onStartJob(')),
+			'no fetch without a place (or with Real weather off): request() returns before its thread, the only way to fetch(); ' +
+			'the page gets nothing; the job cancels itself');
+		var sched = body(JOB, 'static void schedule(');
+		check(/\.setPersisted\(true\)/.test(sched) && /\.setRequiredNetworkType\(JobInfo\.NETWORK_TYPE_ANY\)/.test(sched) &&
+			/\.setPeriodic\(EVERY_MS\)/.test(sched) && /EVERY_MS = 3L \* 60 \* 60 \* 1000;/.test(JOB) &&
+			/static final int ID = 2;/.test(JOB) && /static final int ID = 1;/.test(src('LockJob.java')) &&
+			/\} else \{\s*WeatherJob\.cancel\(app\);/.test(body(FC, 'static void setOn(')) &&
+			/else WeatherJob\.cancel\(app\);/.test(body(FC, 'static void ensureJob(')),
+			'WeatherJob: every 3 h, persisted, needs a network, its own id; cancelled when Real weather goes off (and whenever it is not enabled)');
+		check(/VISIBLE_AFTER_MS = 2 \* HOUR;/.test(FC) && /JOB_AFTER_MS = HOUR;/.test(FC) && /MIN_GAP_MS = 30 \* MINUTE;/.test(FC) &&
+			/BACKOFF_MS = \{ 30 \* MINUTE, HOUR, 3 \* HOUR \};/.test(FC) && /if \(why != FORCE\) \{\s*String wait = notDue/.test(req) &&
+			/if \(on\) Forecast\.visible\(LiliWallpaper\.this\)/.test(src('LiliWallpaper.java')) &&
+			/WeatherJob\.schedule\(app\);\s*now\(app\);/.test(body(FC, 'static void setPlace(')) &&
+			/if \(!online\(app\)\)/.test(req),
+			'the policy: at once on a new place or switch; a shown engine after 2 h; the job after 1 h; 30 min apart, backing off 30 min, 1 h, 3 h; nothing offline');
+		check(/s\.setBlockNetworkLoads\(true\)/.test(src('LiliWeb.java')) &&
+			/return Forecast\.pageData\(getContext\(\)\);/.test(src('LiliView.java')) &&
+			/if \(still == null\) Forecast\.listen\(this\);/.test(src('LiliView.java')) &&
+			/if \(shown && forecastWaiting\) sendForecast\(\);[\s\S]*?Wall\.show\(\)/.test(body(src('LiliView.java'), 'private void push(')),
+			'the WebView loads nothing from the network; every LiliView hands the page the forecast at boot, and pushes a new one before the next show');
+		check(/LocationManager\.NETWORK_PROVIDER/.test(PANEL) && /requestSingleUpdate\(LocationManager\.NETWORK_PROVIDER/.test(PANEL) &&
+			/FIX_TIMEOUT_MS = 15000;/.test(PANEL) && /Geocoder\.isPresent\(\)/.test(PANEL) &&
+			/R\.string\.weather_my_location/.test(PANEL) && (allRaw.match(/ACCESS_COARSE_LOCATION \}, REQ_LOCATION\)/g) || []).length === 1 &&
+			/requestPermissions\(/.test(body(PANEL, 'private void locate(')) &&
+			!/com\.google\.android\.gms|ACCESS_FINE_LOCATION|FusedLocation/.test(allRaw),
+			'Use my location: ACCESS_COARSE_LOCATION asked only when tapped, the framework network provider (no Google services), 15 s, the Geocoder or the coordinates');
+		var shown = codeOnly(PANEL) + codeOnly(src('SettingsActivity.java'));
+		check(!/pageData\(|\.body\b|temperature|symbol_code|weather_code|Stored\b/.test(shown) &&
+			GEOJ.results.every(function (x) { return typeof x.name === 'string' && typeof x.latitude === 'number' && typeof x.longitude === 'number'; }) &&
+			['"name"', '"latitude"', '"longitude"', '"admin1"', '"country"'].every(function (k) { return body(FC, 'static List<Found> search(').indexOf(k) !== -1; }),
+			'the settings screen never reads the forecast (no temperature or condition shown anywhere); the search reads the fields the geocoding fixture has',
+			GEOJ.results.slice(0, 2).map(function (x) { return x.name + ', ' + x.admin1 + ', ' + x.country; }).join(' / '));
+	}
 })();
 
 console.log('\n' + '='.repeat(70));

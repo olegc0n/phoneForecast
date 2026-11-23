@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+Date: Fri, 20 Nov 2026 13:38:30 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 818
+Connection: keep-alive
+X-Encoding-Time: 0.06473064422607422 ms
+cache-control: public, max-age=86400
+Content-Encoding: deflate
+

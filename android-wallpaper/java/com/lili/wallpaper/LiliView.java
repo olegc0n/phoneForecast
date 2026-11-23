@@ -40,12 +40,19 @@ import android.widget.FrameLayout;
  * does not listen to the settings (it is a snapshot of them), and reports the
  * page's stillReady() - or a lost renderer - to its StillListener.
  *
+ * Real weather (Forecast): the page asks for it at boot through the bridge,
+ * every LiliView but the still one. Those also listen for a new forecast, place
+ * or switch, and push Wall.forecast(...) - at once while shown, else just
+ * before the next Wall.show(), so a hidden page is not woken for it. The still
+ * page renders in two seconds with what it got at boot.
+ *
  * Chroma mode (Chroma, while CaptureActivity takes the real home screen): a
  * view that follows prefs - the wallpaper's - draws solid Chroma.KEY instead of
  * the backdrop and hides the WebView, until it is off again. The preview of a
  * draft and the still view never take part.
  */
-final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPreferenceChangeListener, Chroma.Listener {
+final class LiliView extends FrameLayout
+        implements SharedPreferences.OnSharedPreferenceChangeListener, Chroma.Listener, Forecast.Listener {
 
     private static final String TAG = LiliWeb.TAG;
     private static final long RETRY_MS = 30000;
@@ -67,6 +74,7 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
     private boolean pageReady;
     private boolean shown;
     private boolean destroyed;
+    private boolean forecastWaiting;        /* a new forecast the page has not been told about yet */
     private long lastAttempt = -RETRY_MS;
 
     private final LiliWeb.Callbacks callbacks = new LiliWeb.Callbacks() {
@@ -98,6 +106,11 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
         /* the JavaBridge thread: `look` is final and immutable, prefs are thread-safe */
         public String config() {
             return look != null ? look.pageConfig() : Prefs.pageConfig(getContext());
+        }
+
+        /* the JavaBridge thread too: the preview and the lock picture get the same weather */
+        public String forecast() {
+            return Forecast.pageData(getContext());
         }
     };
 
@@ -143,6 +156,7 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
             prefs.registerOnSharedPreferenceChangeListener(this);
             Chroma.listen(this);
         }
+        if (still == null) Forecast.listen(this);
         createWeb();
     }
 
@@ -193,7 +207,22 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
 
     private void push() {
         if (!pageReady || still != null) return;     /* a still page is never shown or hidden */
+        if (shown && forecastWaiting) sendForecast(); /* before the show, which decides with it */
         js(shown ? "window.Wall&&Wall.show()" : "window.Wall&&Wall.hide()");
+    }
+
+    /** A new forecast, place or Real weather switch (main thread): the page hears it now if shown, else at its next show. */
+    @Override
+    public void forecastChanged() {
+        if (destroyed || still != null) return;
+        forecastWaiting = true;
+        if (shown && pageReady && web != null) sendForecast();
+    }
+
+    private void sendForecast() {
+        forecastWaiting = false;
+        String data = Forecast.pageData(getContext());
+        js("window.Wall&&Wall.forecast(" + (data.length() > 0 ? data : "null") + ")");
     }
 
     private void js(String code) {
@@ -232,6 +261,7 @@ final class LiliView extends FrameLayout implements SharedPreferences.OnSharedPr
             prefs.unregisterOnSharedPreferenceChangeListener(this);
             Chroma.unlisten(this);
         }
+        if (still == null) Forecast.unlisten(this);
         main.removeCallbacks(sendConfig);
         dropWeb();
     }

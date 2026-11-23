@@ -3,16 +3,19 @@
      onto the home screen, a still picture of her for the lock screen, a
      settings screen (also the launcher icon), a full-screen preview of
      settings not applied yet, with Apply, Cancel, the plan for the home and
-     lock screens and an icons layer, and the capture of the real home screen
-     for that layer.
+     lock screens and an icons layer, the capture of the real home screen
+     for that layer, and real weather for her clothes and scenes (Forecast,
+     WeatherJob; never shown on screen).
 
-     Permissions; the page itself still loads nothing it did not ship with:
+     Permissions; the page itself still loads nothing it did not ship with (the
+     WebView blocks network loads; only Java fetches the forecast):
        SET_WALLPAPER           putting a saved wallpaper (or My wallpaper) back,
                                and the lock-screen picture (setBitmap FLAG_LOCK).
                                Normal: no prompt.
-       RECEIVE_BOOT_COMPLETED  the lock picture's 3-hourly refresh job is persisted
-                               across reboots (blocked in this version: only a
-                               picture left from an earlier build is kept fresh)
+       RECEIVE_BOOT_COMPLETED  the 3-hourly jobs are persisted across reboots: the
+                               weather's (WeatherJob), and the lock picture's
+                               (blocked in this version: only a picture left
+                               from an earlier build is kept fresh)
        READ_EXTERNAL_STORAGE   reading the current wallpaper - to keep it as My
                                wallpaper, and to save it before Lili takes the
                                home screen. Asked for at run time, only where it
@@ -28,6 +31,13 @@
                                ...of type mediaProjection (API 34+). Normal. The
                                capture itself is allowed by the user, each time,
                                in the system's screen-capture dialog.
+       INTERNET                the forecast (Open-Meteo, MET Norway as the
+                               fallback) and the city search, over HTTPS; only
+                               with a place set and Real weather on. Normal.
+       ACCESS_NETWORK_STATE    no attempt while offline. Normal.
+       ACCESS_COARSE_LOCATION  "Use my location" only: asked at run time when
+                               the user taps it; the network provider's fix.
+                               Searching for a city needs nothing.
      No version here: tools/build-wallpaper-apk.ps1 injects android-wallpaper/VERSION.
      `package` is the Java namespace and equals $AppId in
      tools/build-wallpaper-apk.ps1 (tools/check-wallpaper.js asserts that).
@@ -44,6 +54,12 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- implied by ACCESS_COARSE_LOCATION; not needed: a city can be searched for -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
 
     <application
         android:label="@string/app_name"
@@ -53,12 +69,14 @@
         android:theme="@style/Lili">
 
         <!-- not recreated on rotation: a backup, restore or dialog in flight
-             stays with the screen that started it -->
+             stays with the screen that started it. The keyboard only when the
+             city field is tapped. -->
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
             android:theme="@style/LiliSettings"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden">
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            android:windowSoftInputMode="stateHidden|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -106,6 +124,12 @@
         <!-- the lock-screen picture's 3-hourly refresh; only the system can bind it -->
         <service
             android:name=".LockJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true" />
+
+        <!-- the forecast's 3-hourly refresh, with any network; only the system can bind it -->
+        <service
+            android:name=".WeatherJob"
             android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="true" />
     </application>

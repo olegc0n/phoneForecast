@@ -13,9 +13,12 @@ are marked **(platform, confirm in step N)** and the step says how.
 One app, **Lili** (`com.lili.wallpaper`): an Android live wallpaper. Lili lives
 on the user's own home screen, under their icons, widgets and clock, and,
 animated, on the lock screen of phones that show third-party live wallpapers
-there (stock Android). No clock of her own, no forecast, no network. Three
+there (stock Android). No clock of her own and no forecast on screen. Three
 permissions, for the user's previous wallpapers and a lock-screen picture that
-is blocked in this version (section 8).
+is blocked in this version (section 8). (Since section 9, six; since section
+10, nine: with a place set, the real weather for it - fetched, never shown -
+dresses her and picks her scenes, and otherwise she lives under an invented
+sky with no network at all.)
 
 | | |
 |---|---|
@@ -1423,3 +1426,279 @@ off, an extra permission).
   state.
 - Check with `adb logcat -s Lili`: `[ORIG]`, `[CAPTURE]`, plus the earlier
   `[LIFE]`, `[BACKUP]`, `[BG]`.
+
+---
+
+## 10. Real weather
+
+Added after the fourth round. Until now her sky was invented (`sky.js`: eleven
+kinds weighted by the month), which kept the app off the network. The user
+wanted her clothes and animations to follow the real forecast for where they
+live, with **no weather shown on screen**: it only drives her behaviour.
+
+### Decisions (made by the user)
+
+- **Sources.** **Open-Meteo** (no key; free for non-commercial use under
+  10,000 calls a day; data CC BY 4.0, credited "Weather data by
+  Open-Meteo.com"), hourly for three days. **MET Norway** Locationforecast 2.0
+  `compact` is the fallback, used only when Open-Meteo fails (a network error,
+  a 5xx, or JSON that is not a forecast), credited "Weather data by MET
+  Norway". MET answers 403 without a User-Agent naming the app and a contact,
+  so every request carries one constant, `Lili/<versionName>
+  (+https://github.com/olegc0n/phoneForecast)`. Its `Expires` is respected and
+  `If-Modified-Since` is sent with its `Last-Modified`. MET has no sunrise or
+  sunset, so the page computes both, for either source.
+- **Location**: a city search (Open-Meteo geocoding), plus **Use my location**.
+  That asks for `ACCESS_COARSE_LOCATION` once, when tapped, and uses the
+  framework `LocationManager`'s network provider (Huawei has no Google
+  services). The place is named by `android.location.Geocoder` where there is
+  one, else "My location (52.52, 13.41)". Prefs keep the name, the latitude and
+  longitude (4 decimals) and how it was set (`search`/`gps`).
+- **A Weather section in settings**, not part of the look's draft. It applies
+  at once, with no Preview or Apply. A **Real weather** switch is on by default
+  once a place is set; off means the invented sky and no network at all.
+- **Never shown.** The settings say where the weather is for, when it was last
+  fetched and from whom ("Updated 14:05 · Open-Meteo", or "No data yet"), and
+  credit the source. No temperature or condition appears there or anywhere
+  else.
+
+### How it flows
+
+```
+WeatherPanel (settings) --place, switch--> Forecast.java --fetch--> files/forecast.json
+LiliWallpaper (shown, data > 2 h old), WeatherJob (3 h) --^                 |
+                                                                            v
+page boot: PhoneForecast.forecast() ------------------------------> Wall.forecast(data)
+new forecast, place or switch: LiliView pushes Wall.forecast(data | null)   |
+                                                                            v
+             Forecast.load (forecast.js) -> Sky.useReal(Forecast.now) -> Bus 'weather'
+```
+
+The page asks for the forecast once at boot through the bridge, **before** the
+first sky is published, so she never starts in an invented outfit and changes
+it a moment later. After that, every `LiliView` except the still one listens to
+`Forecast` (weakly, like `Chroma`) and pushes `Wall.forecast(...)`: at once
+while shown, else just before the next `Wall.show()`, so a hidden page is not
+woken for it. The preview and the lock picture's still page get the same
+forecast at boot, so her outfit matches. The WebView itself still loads nothing
+from the network (`setBlockNetworkLoads(true)`); only Java fetches.
+
+### The page: `src/wallpaper/forecast.js`
+
+It sits in the tail of `tools/wallpaper-modules.js`, before `still.js` and
+`wall.js`.
+
+- `Forecast.load({source, body, lat, lon, fetchedAt, place})` (the body as a
+  string or an object) normalises either source into one hourly series
+  `[{t, code, sky, precip, intensity, isThunder, temp, wind, windAngle,
+  humidity, pressure}]`. MET's later entries are six hours apart; each is
+  spread over its hours, and the last one (a temperature with no sky) is left
+  out. Anything that is not a usable forecast is refused, and nothing is kept.
+- `Forecast.now(date)` returns the payload for the hour `date` falls in, in
+  exactly `derive()`'s shape and key order (`src/core/weather.js`, not edited).
+  It returns **null** when nothing is loaded, when the data was fetched more
+  than **48 h** ago, or when there is no entry for this hour. The hour is found
+  by time (an entry covers `[t, t + 1 h)`), never by the clock, so midnight,
+  DST and a place in another time zone cannot pick the wrong one.
+  - `temp` is rounded to a whole degree (as `derive()` gives it) and `wind` to
+    0.1 m/s. `pressure` is in mm Hg (hPa x 0.750062, rounded), and
+    `pressureTrend` is how many mm Hg it will have changed by over the next 3
+    hours of the series. `moonCode` is null, as in `sky.js`. A missing
+    `humidity` is 50 and a missing `wind` 0, as in `derive()`.
+  - **Sunrise and sunset are computed locally** with the NOAA solar position
+    algorithm (the one behind NOAA's solar calculator), for the place and the
+    phone's date, each event refined at its own time. `sunriseMin` and
+    `sunsetMin` are clock minutes on the phone (what `cat.js`'s `wxNow()`
+    compares with), and `isNight` is `derive()`'s
+    `m < sunriseMin || m > sunsetMin`. In polar day or night, or for a place so
+    far away that its daylight straddles the phone's midnight, both are null
+    (so `wxNow()` leaves `isNight` alone), and `isNight` is the sun's height
+    right now (below -0.833 deg).
+- **Sky stays the fallback and becomes the switch** (`sky.js`). `Wall.forecast`
+  hands it `Forecast.now` (`Sky.useReal`), or null. While that has an answer,
+  it is the sky:
+  - `begin()` publishes it;
+  - `tick()` (every minute) publishes it again **only when something material
+    changed**. `Sky.material()` is the sky, the precipitation and its
+    intensity, thunder, night, the whole degree, the whole m/s, and whether the
+    pressure is falling by more than 3 mm (`cat.js`'s threshold). So her
+    clothes do not flicker;
+  - `redraw()` changes nothing. That covers the shuffle's every-fifth arming, a
+    show after three hours away, and the boot loop that looks for unseen
+    scenes.
+
+  When it has no answer, or is taken away, the next tick publishes an invented
+  sky again (`Wall.forecast(null)` does it at once). Meanwhile `Sky.kind()` is
+  `'real'`, and the still page's state says so.
+- **Off means never consulted.** With no forecast from the host, `Wall` never
+  calls `Forecast` at all, and the page behaves exactly as before.
+
+### The mapping
+
+WMO codes (Open-Meteo's `weather_code`) are one table in `forecast.js`. The
+intensity is what `derive()` gives: -1 light, 0 moderate, +1 heavy.
+
+| WMO | sky | precip | intensity | thunder |
+|---|---|---|---|---|
+| 0 clear | `skc` | - | 0 | |
+| 1, 2 mainly clear, partly cloudy | `bkn` | - | 0 | |
+| 3 overcast; 45, 48 fog | `ovc` | - | 0 | |
+| 51, 53, 55 drizzle | `ovc` | `ra` | -1 | |
+| 56, 57 freezing drizzle | `ovc` | `ra_sn` | -1 | |
+| 61, 63, 65 rain | `ovc` | `ra` | -1, 0, +1 | |
+| 66, 67 freezing rain | `ovc` | `ra_sn` | -1, +1 | |
+| 71, 73, 75 snow; 77 snow grains | `ovc` | `sn` | -1, 0, +1; -1 | |
+| 80, 81, 82 rain showers | `bkn` | `ra` | -1, 0, +1 | |
+| 85, 86 snow showers | `bkn` | `sn` | -1, +1 | |
+| 95, 96, 99 thunderstorm (with hail) | `ovc` | `ra` | 0, 0, +1 | yes |
+| any other | `ovc` with 0.1 mm or more of precipitation (`sn` at 0 C or below, else `ra`), otherwise `bkn` | | 0 | |
+
+MET's `symbol_code` is one table of families. First `_day`, `_night` or
+`_polartwilight` is taken off, then a `light`/`heavy` prefix (-1/+1; MET itself
+spells two codes `lights...`), then an `andthunder` suffix (thunder).
+
+| family | sky | precip |
+|---|---|---|
+| `clearsky` | `skc` | - |
+| `fair`, `partlycloudy` | `bkn` | - |
+| `cloudy`, `fog` | `ovc` | - |
+| `rain` / `rainshowers` | `ovc` / `bkn` | `ra` |
+| `sleet` / `sleetshowers` | `ovc` / `bkn` | `ra_sn` |
+| `snow` / `snowshowers` | `ovc` / `bkn` | `sn` |
+| unknown | `bkn` | - |
+
+`fair` is `bkn`, like WMO 1, so both sources give the same sky for the same
+weather.
+
+### The Java side: `Forecast`, `WeatherJob`, `WeatherPanel`
+
+**The fetch policy** (`Forecast.request`):
+
+1. Fetch at once when the place changes or Real weather is turned on.
+2. Fetch when a wallpaper engine becomes visible and the kept forecast is
+   older than 2 h.
+3. `WeatherJob` runs every 3 h with `NETWORK_TYPE_ANY`, persisted (job id 2;
+   `LockJob` is 1). It fetches unless the forecast is younger than 1 h.
+4. Never more than once in 30 min for one place, except for (1). After a
+   failure, not again for 30 min, then 1 h, then 3 h for every later one
+   (`wx_fails`).
+5. With no place, or Real weather off, never: no request at all, and the job
+   is cancelled (by `setOn(false)` and `ensureJob`; a job run that finds
+   weather off also cancels itself).
+
+Offline (no active network, `ACCESS_NETWORK_STATE`), nothing is attempted. One
+fetch runs at a time, and a forced one asked for meanwhile follows it. A result
+for a place that is no longer the place, or that arrives after the switch went
+off, is thrown away. A stored attempt time in the future (a clock that went
+backwards) does not block a fetch.
+
+**The request** (`get()`, the one place a connection is opened) is HTTPS only
+(anything else is refused), carries the User-Agent, asks for gzip, waits 10 s
+to connect and 10 s to read, follows no redirects and reads 4 MB at most.
+Open-Meteo gets the coordinates to 2 decimals (about 1 km) and MET to 4 (its
+maximum). The geocoding gets the name typed, with `language=ru` on a Russian
+phone.
+
+**What is kept**: `files/forecast.json` (a temp file, then a rename) holds the
+raw body, the source, when it was fetched, the place and its key (4
+decimals), and MET's `Last-Modified` and `Expires`. A restart costs no
+request. Prefs hold the metadata (`wx_at`, `wx_src`, `wx_key`, `wx_try_at`,
+`wx_fails`, `wx_error`), so the policy and the settings never read the file on
+the main thread. `Forecast.pageData()` gives the page
+`{source, body, lat, lon, fetchedAt, place}`. It gives "" with no place, with
+Real weather off, or when what is kept is for another place, so a new place
+shows the invented sky until its own forecast arrives.
+
+**Settings** (`WeatherPanel`, below Preview). Every view comes from
+`SettingsActivity`'s factories, with a new `field()` for the city box.
+
+| Line | Shows |
+|---|---|
+| Weather for: Minsk, Belarus | or "No place set, so the weather is invented" |
+| **Real weather** (switch) | disabled until a place is set; turned on when one is chosen |
+| [City] **Search** | the results (name, region, country) in the screen's own dialog; a tap sets the place |
+| **Use my location** | permission, fix, name, as above: the last known fix if it is under a day old, else one update within 15 s, else the old fix |
+| status | "Updated 14:05 · Open-Meteo", "Updated ... (the last update failed; Lili tries again later)", "No data yet", "Updating...", "Searching...", "Finding your location...", "Real weather is off..." |
+| credit | "Weather data by Open-Meteo.com" or "Weather data by MET Norway" |
+| note | what it does, and that only the coordinates (or the city searched for) are sent |
+
+### Permissions (nine)
+
+Section 9's six, plus three:
+
+- `INTERNET` (normal): the forecast and the search.
+- `ACCESS_NETWORK_STATE` (normal): nothing is attempted offline.
+- `ACCESS_COARSE_LOCATION` (runtime): only when **Use my location** is tapped.
+
+`android.hardware.location` and `android.hardware.location.network` are
+declared not required, because a city can always be searched for.
+
+### Files
+
+New: `src/wallpaper/forecast.js`, `Forecast.java`, `WeatherJob.java`,
+`WeatherPanel.java`, and `tools/fixtures/`: three real responses with their
+headers, each captured once on 2026-11-20 for Berlin, with the app's
+User-Agent.
+
+Changed:
+
+- `sky.js` (the real mode), `wall.js` (`forecast()`, `hostForecast()`),
+  `wall-boot.js` (the forecast before the first sky), `wallpaper-modules.js`;
+- `LiliView.java` (the bridge's `forecast()`, the listener, the push before a
+  show), `LiliWeb.java` (`forecast()`, `setBlockNetworkLoads`),
+  `LiliWallpaper.java` (when shown, a fetch if due; when created, the job);
+- `SettingsActivity.java` (the section, `field()`, a `CharSequence` `button()`,
+  the shared dialog helpers), `Prefs.java` (`wx_*`), the manifest, the strings
+  (en, ru);
+- `check-wallpaper.js` (E, I and the new group J).
+
+### Checks added (group J, and E and I)
+
+Group J runs on a Berlin clock, so DST is covered. It checks:
+
+- both normalisers on the real fixtures;
+- every WMO code, and every documented MET symbol (41, with each suffix),
+  against tables typed in separately;
+- the hour across midnight and both DST changes;
+- sunrise and sunset within 3 min of Open-Meteo's own for Berlin, and of the
+  independent USNO algorithm for Berlin and Minsk (the worst is under a
+  minute); polar day and night at 78 N; a place whose day straddles the
+  phone's midnight;
+- data 47 h old is used, 49 h old is stale, and eleven broken inputs are
+  refused;
+- `derive()`'s keys, order and types for every hour of both fixtures;
+- three hours of real weather publish only on material changes (four payloads
+  in 180 ticks);
+- with no forecast, `Forecast` is never called;
+- real weather survives every redraw and gives way after 48 h, and the still
+  page wears it;
+- real weather reaches every scene that the invented sky of the same kind
+  reaches: clear 20, rain 19, snow 51 and hot 22 of 82.
+
+Statically, it checks: the User-Agent set on every request by the one `get()`;
+HTTPS and the timeouts; the coordinates' precision; MET only when Open-Meteo
+fails, with `Expires` and `If-Modified-Since`; no fetch without a place; the
+job persisted, needing a network, and cancelled when off; the policy's
+numbers; the page blocked from the network; the location path without Google
+services; and the settings never reading the forecast. Each new static check,
+and the "no republish" check, was made to fail once on purpose.
+
+Group E checks the nine permissions and the job service. Group I checks the
+field's colours, and that the Weather section has no control, colour or
+dialog of its own.
+
+### Untested (no device in this round)
+
+- The fetch on the phone: HTTPS to both services through Huawei's network
+  stack, gzip, the job every 3 h under EMUI's background limits (Lili may need
+  "Manage manually" in App launch, as the old lock picture did), and the fetch
+  when an engine comes into view (`[WX]` lines in `adb logcat -s Lili`).
+- **Use my location on Huawei** (no Google services): whether its network
+  provider gives a fix, whether `Geocoder.isPresent()` is true (otherwise the
+  place is named by its coordinates), and the permission dialog.
+- The Weather section as EMUI draws it: the city field (below API 29 the
+  cursor colour comes from the theme), the keyboard over the screen
+  (`adjustResize`), and the results dialog with eight places.
+- That her outfit changes once when a forecast arrives or the hour turns, and
+  that turning "Real weather" off brings the invented sky back on the home
+  screen at the next show.

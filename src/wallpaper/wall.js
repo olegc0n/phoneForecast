@@ -31,7 +31,17 @@
  *
  * STILL MODE. With #still=1 in the URL the page is the lock-screen picture
  * (still.js): wall-boot.js runs Still.begin() instead of Wall.begin(), and
- * show() and hide() do nothing, so nothing can thaw the frozen page.        */
+ * show() and hide() do nothing, so nothing can thaw the frozen page.
+ *
+ * REAL WEATHER. With a place set and Real weather on, the phone keeps a
+ * forecast. The page asks for it once at boot (PhoneForecast.forecast(), before
+ * the first sky is published, so she never starts in an invented outfit and
+ * changes), and the host pushes Wall.forecast(data) after every new fetch, or
+ * Wall.forecast(null) when it is turned off. Forecast (forecast.js) reads it,
+ * and Sky publishes it in place of an invented sky for as long as it covers
+ * the hour (sky.js). With no forecast, Forecast is never consulted at all.
+ * Nothing about the weather is ever shown: it only dresses her and picks her
+ * scenes. Still mode and the preview get the same forecast the same way.    */
 
 var Wall = (function () {
 	var SIZE_MIN = 15, SIZE_MAX = 100, LIFT_MIN = 0, LIFT_MAX = 45;
@@ -49,6 +59,7 @@ var Wall = (function () {
 	var performed = false;        /* a fresh animation has been chosen since load */
 	var seen = false;             /* a show() has been decided since load */
 	var playTimer = null;
+	var forecastHeld = false;     /* Forecast holds data from the host */
 
 	/* ---- configuration ---- */
 
@@ -93,6 +104,40 @@ var Wall = (function () {
 			if (host && host.config) take(JSON.parse(String(host.config())));
 		} catch (e) { LOG('wall: host config unreadable - ' + e); }
 		take(hashParams());
+	}
+
+	/* ---- real weather ---- */
+
+	/* What the host has for this page, read once at boot: a JSON string, or
+	 * null - no bridge, no place, Real weather off, nothing fetched yet. */
+	function hostForecast() {
+		try {
+			var host = window.PhoneForecast;
+			if (host && host.forecast) {
+				var s = host.forecast();
+				return s ? String(s) : null;
+			}
+		} catch (e) { LOG('wall: host forecast unreadable - ' + e); }
+		return null;
+	}
+
+	/* The forecast the phone fetched ({source, body, lat, lon, fetchedAt,
+	 * place}, or its JSON), or null for none. Sky takes it from here: at once if
+	 * the sky has begun (published only if it is new to her), else at begin(). */
+	function forecast(data) {
+		var ok = false;
+		if (data !== null && data !== undefined && data !== '') {
+			ok = Forecast.load(data);
+			forecastHeld = ok;
+			LOG('wall: forecast ' + (ok ? Forecast.describe(new Date()) : 'unusable - the sky stays invented'));
+		} else if (forecastHeld) {
+			Forecast.clear();
+			forecastHeld = false;
+			LOG('wall: no forecast any more - the sky is invented');
+		}
+		Sky.useReal(ok ? Forecast.now : null);
+		Sky.tick(new Date());
+		return ok;
 	}
 
 	/* ---- placement ---- */
@@ -243,9 +288,10 @@ var Wall = (function () {
 			asleep = inSleep(m.date);
 		});
 
-		/* a sky that leaves nothing unseen would only offer repeats */
+		/* an invented sky that leaves nothing unseen would only offer repeats
+		 * (the real one is what it is) */
 		var cands = library();
-		for (var i = 0; i < 4 && Shuffle.fresh(cands, Sky.current(), date) === 0; i++) Sky.redraw(date);
+		for (var i = 0; i < 4 && !Sky.isReal() && Shuffle.fresh(cands, Sky.current(), date) === 0; i++) Sky.redraw(date);
 
 		/* after cat.js's own handler, which leaves the loop OFF in quiet hours */
 		on(document, 'visibilitychange', function () {
@@ -276,8 +322,10 @@ var Wall = (function () {
 		apply: apply,
 		show: show,
 		hide: hide,
+		forecast: forecast,
+		hostForecast: hostForecast,
 		state: function () {
-			return { hidden: state !== 'shown', asleep: asleep, size: size, lift: lift };
+			return { hidden: state !== 'shown', asleep: asleep, size: size, lift: lift, real: Sky.isReal() };
 		},
 		geometry: function () { return geo; }
 	};

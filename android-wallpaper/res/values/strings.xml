@@ -83,6 +83,35 @@
     <string name="mock_apps">Phone,Messages,Camera,Photos,Clock,Maps,Music,Mail,Notes,Weather</string>
     <string name="mock_folder">Tools</string>
 
+    <!-- real weather: the place, the switch, where it comes from (never the weather itself) -->
+    <string name="weather_heading">Weather</string>
+    <string name="weather_for">Weather for: %1$s</string>
+    <string name="weather_none">No place set, so the weather is invented</string>
+    <string name="weather_real">Real weather</string>
+    <string name="weather_search_hint">City</string>
+    <string name="weather_search">Search</string>
+    <string name="weather_locate">Use my location</string>
+    <string name="weather_note">Lili dresses for the weather there and picks her animations by it; the weather itself is never shown. Only the coordinates are sent, or the city you search for.</string>
+    <string name="weather_searching">Searching…</string>
+    <string name="weather_locating">Finding your location…</string>
+    <string name="weather_updating">Updating…</string>
+    <string name="weather_updated">Updated %1$s · %2$s</string>
+    <string name="weather_updated_failed">Updated %1$s · %2$s (the last update failed; Lili tries again later)</string>
+    <string name="weather_no_data">No data yet</string>
+    <string name="weather_failed">No data yet: the weather service couldn’t be reached. Lili tries again later.</string>
+    <string name="weather_off">Real weather is off: the weather is invented, and Lili uses no network.</string>
+    <string name="weather_src_om">Open-Meteo</string>
+    <string name="weather_src_met">MET Norway</string>
+    <string name="weather_by_om">Weather data by Open-Meteo.com</string>
+    <string name="weather_by_met">Weather data by MET Norway</string>
+    <string name="weather_pick">Choose the place</string>
+    <string name="weather_not_found">No place called “%1$s” was found.</string>
+    <string name="weather_search_failed">Couldn’t search. Check the connection and try again.</string>
+    <string name="weather_need_location">Without location access, search for your city instead.</string>
+    <string name="weather_location_off">Location is off. Turn it on, or search for your city.</string>
+    <string name="weather_location_failed">Couldn’t find your location. Search for your city instead.</string>
+    <string name="weather_my_location">My location (%1$s, %2$s)</string>
+
     <string name="note_touch">She does not react to touch yet.</string>
     <string name="photo_failed">Could not use that picture.</string>
     <string name="no_webview">Android System WebView is not available right now. Lili will appear when it is.</string>

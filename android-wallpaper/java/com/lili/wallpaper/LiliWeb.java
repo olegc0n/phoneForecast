@@ -22,7 +22,10 @@ import android.webkit.WebViewClient;
  *
  * Unlike the informer's, this page never makes a request: it loads its one
  * asset and nothing else, so none of the file-access settings MainActivity
- * needs for its XHR are turned on. Assets load without them.
+ * needs for its XHR are turned on. Assets load without them. The app may use
+ * the network (INTERNET, for real weather), but only Java does, in Forecast:
+ * the WebView is told to load nothing from the network at all
+ * (setBlockNetworkLoads), so the page stays as it shipped.
  *
  * The background is transparent: the backdrop (a preset or the user's photo)
  * is drawn natively, underneath.
@@ -33,9 +36,11 @@ import android.webkit.WebViewClient;
  * Android kill the whole wallpaper process.
  *
  * The bridge keeps the informer's name, window.PhoneForecast, because the
- * shared host.js detects exactly that. Methods: host(), sdk(), config(), and
- * stillReady(json), which only the page in still mode (#still=1, the
- * lock-screen picture) calls, once, when she has posed and the page is frozen.
+ * shared host.js detects exactly that. Methods: host(), sdk(), config(),
+ * forecast() (the real weather the phone has for the page, or "": read once at
+ * boot; later ones arrive as Wall.forecast(...)), and stillReady(json), which
+ * only the page in still mode (#still=1, the lock-screen picture) calls, once,
+ * when she has posed and the page is frozen.
  */
 final class LiliWeb {
 
@@ -51,6 +56,8 @@ final class LiliWeb {
         /** Her size and height for the page's boot config, {"size":60,"lift":22}: the applied
          *  ones, or a draft's in the preview. Asked on the JavaBridge thread, not the main one. */
         String config();
+        /** The real weather for the page (Forecast.pageData), or "". The JavaBridge thread. */
+        String forecast();
     }
 
     private LiliWeb() {}
@@ -67,6 +74,7 @@ final class LiliWeb {
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(false);
         s.setTextZoom(100);                    /* ignore the system font-size setting */
+        s.setBlockNetworkLoads(true);          /* the page loads nothing from the network: Java fetches the weather */
 
         web.setBackgroundColor(Color.TRANSPARENT);
         web.setHorizontalScrollBarEnabled(false);
@@ -165,6 +173,12 @@ final class LiliWeb {
         @JavascriptInterface
         public String config() {
             return callbacks != null ? callbacks.config() : Prefs.pageConfig(context);
+        }
+
+        /** the real weather, read once at boot: {"source", "body", ...} or "" (Forecast.pageData) */
+        @JavascriptInterface
+        public String forecast() {
+            return callbacks != null ? callbacks.forecast() : Forecast.pageData(context);
         }
     }
 }
