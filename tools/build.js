@@ -45,6 +45,7 @@ var MODULES = [
 	'src/core/bus.js',
 	'src/core/view.js',
 	'src/core/weather.js',
+	'src/core/sky.js',
 	'src/core/clock.js',
 	'src/cat/shapes.js',
 	'src/cat/rig.js',

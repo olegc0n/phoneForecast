@@ -235,7 +235,50 @@ var Weather = (function () {
 
 		var result = parse(data, date, now.c);
 		View.update(result, asOf);
+
+		/* The sky block draws from the same moment, with the same stamp, so it
+		 * fades out with the numbers when the data expires. */
+		sky = skyOf(data, now.c);
+		toSky(asOf);
+
 		Bus.emit('weather', derive(data, date, now.c));
+	}
+
+	/* ---------------- the sky's view of the same data ----------------
+	 *
+	 * What sky.js draws from: the code and cloud cover of the present, the wind,
+	 * and the sun and moon of every day the file covers. All the days, not just
+	 * today's numbers: the sun is placed from the clock every minute, and at
+	 * midnight the next day's sunrise is already in hand without waiting for a
+	 * call. This replaces the old daylight bar, which read its sunrise and sunset
+	 * back out of the DOM. */
+	var sky = null;
+
+	function skyOf(data, nowc) {
+		var f = nowc || data.fact || {};
+		var fc = data.forecasts || [], days = [];
+		for (var i = 0; i < fc.length; i++) {
+			var d = fc[i] || {};
+			days.push({
+				date: String(d.date || ''),
+				rise: hhmm(d.sunrise),
+				set: hhmm(d.sunset),
+				moon: typeof d.moon_code === 'number' ? d.moon_code : -1
+			});
+		}
+		return {
+			code: f.icon || '',
+			cloudness: typeof f.cloudness === 'number' ? f.cloudness : null,
+			wind: typeof f.wind_speed === 'number' ? f.wind_speed : 0,
+			days: days
+		};
+	}
+
+	/* The sky is decoration: nothing it does may stop the forecast, so it is
+	 * called last and fenced off. It keeps its own fault count. */
+	function toSky(asOf) {
+		if (typeof Sky === 'undefined' || !Sky.feed) return;
+		try { Sky.feed(sky, asOf); } catch (e) {}
 	}
 
 	/* Redraw from the stored file when the hour turns over.
@@ -268,44 +311,22 @@ var Weather = (function () {
 	 * Everything below reads that rather than data.fact.                      */
 	function parse(data, date, nowc) {
 		var result = {};
-		var id, min, max, hour;
+		var id, hour;
 		var f = nowc || data.fact;
 
-		if (f.hasOwnProperty('icon')) result.icon = f.icon;
+		/* The sky block (#sky) is a View field of its own, so it appears with the
+		 * data and fades with it like every other sector_ field. The icon, today's
+		 * low and high, the three bars and the sunrise row it replaced are gone. */
+		result.sky = 'sky_on';
 		if (f.hasOwnProperty('temp')) result.temperature = (f.temp > 0 ? '+' : '') + f.temp;
 		if (f.hasOwnProperty('wind_speed')) {
 			result.wind = f.wind_speed;
-			result.wind_progress = 'width: ' + (100 - Math.round(f.wind_speed / wind_max * 100)) + '%';
 			if (f.hasOwnProperty('wind_angle')) result.wind_icon = 'transform: rotate(' + (f.wind_angle - 180) + 'deg)';
 		}
-		if (f.hasOwnProperty('humidity')) {
-			result.humidity = f.humidity;
-			result.humidity_progress = 'width: ' + (100 - f.humidity) + '%';
-		}
-		if (f.hasOwnProperty('pressure_mm')) {
-			result.pressure = f.pressure_mm;
-			var pp;
-			if (result.pressure < pressure_min) pp = 0;
-			else if (result.pressure > pressure_max) pp = 100;
-			else pp = Math.round((result.pressure - pressure_min) / (pressure_max - pressure_min) * 100);
-			result.pressure_progress = 'width: ' + (100 - pp) + '%';
-		}
+		if (f.hasOwnProperty('humidity')) result.humidity = f.humidity;
+		if (f.hasOwnProperty('pressure_mm')) result.pressure = f.pressure_mm;
 
 		if (data.forecasts.hasOwnProperty('0')) {
-			if (data.forecasts[0].hasOwnProperty('hours')) {
-				min = max = 0;
-				for (id in data.forecasts[0].hours) {
-					if (data.forecasts[0].hours[id].hasOwnProperty('temp')) {
-						if (data.forecasts[0].hours[id].temp < data.forecasts[0].hours[min].temp) min = id;
-						if (data.forecasts[0].hours[id].temp > data.forecasts[0].hours[max].temp) max = id;
-					}
-				}
-				result.min = (data.forecasts[0].hours[min].temp > 0 ? '+' : '') + data.forecasts[0].hours[min].temp;
-				result.min_date = pad(min) + ':00';
-				result.max = (data.forecasts[0].hours[max].temp > 0 ? '+' : '') + data.forecasts[0].hours[max].temp;
-				result.max_date = pad(max) + ':00';
-			}
-
 			hour = date.getHours();
 			var parts = {};
 			if (hour >= 6 && hour <= 11) {
@@ -331,44 +352,8 @@ var Weather = (function () {
 					if (src.hasOwnProperty('wind_angle')) result['forecast_wind_icon_' + id] = 'transform: rotate(' + (src.wind_angle - 180) + 'deg)';
 				}
 			}
-
-			if (data.forecasts[0].hasOwnProperty('moon_code')) result.moon = 'moon_' + data.forecasts[0].moon_code;
-			if (data.forecasts[0].hasOwnProperty('sunrise') && data.forecasts[0].hasOwnProperty('sunset')) {
-				result.rise = data.forecasts[0].sunrise;
-				result.set = data.forecasts[0].sunset;
-				riseset(result.rise, result.set, date);
-			}
 		}
 		return result;
-	}
-
-	function riseset(rise, set, date) {
-		if (!rise || !set) return;
-		var r = hhmm(rise), s = hhmm(set);
-		if (r < 0 || s < 0) return;
-
-		var result = {};
-		var duration = s - r;
-		var current = date.getHours() * 60 + date.getMinutes();
-		var hour = Math.floor(duration / 60);
-
-		result.duration_hour = pad(hour);
-		result.duration_minute = pad(duration - hour * 60);
-		result.duration_time = 'width: ' + Math.round(duration / (60 * 24) * 100) + '%; left: ' + Math.round(r / (60 * 24) * 100) + '%';
-		result.duration_progress = 'width: ' + Math.round(current / (60 * 24) * 100) + '%';
-
-		var minutes, hours;
-		if (current > r && current < s) {
-			minutes = s - current;
-			result.duration_left = period.day_day;
-		} else {
-			minutes = 60 * 24 - current + r;
-			result.duration_left = period.day_night;
-		}
-		hours = Math.floor(minutes / 60);
-		result.duration_left += ' ' + pad(hours) + ':' + pad(minutes - hours * 60);
-
-		View.update(result, Date.now());
 	}
 
 	/* ---------------- the cat's view of the same data ---------------- */
@@ -472,7 +457,10 @@ var Weather = (function () {
 		due: due,
 		fetch: fetch,
 		restore: restore,
-		riseset: riseset,
+		/* the sky reads icon codes the same way the cat does - one parser */
+		splitCode: splitCode,
+		/* what the sky block was last given (sky.js), or null before any data */
+		sky: function () { return sky; },
 		cached: function () { return !!Store.getJSON(CACHE_KEY); }
 	};
 })();

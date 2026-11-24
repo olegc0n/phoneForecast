@@ -40,6 +40,11 @@ on(window, 'load', function () {
 	var date = new Date();
 	var now = Date.now();
 
+	/* The sky block, before the cached forecast is painted, so the first paint
+	 * already has its sky. It is decoration and catches its own faults: nothing
+	 * it does can stop the clock below it. */
+	if (typeof Sky !== 'undefined') Sky.init();
+
 	/* paint the cached response before the network is even attempted, so a
 	 * reload or a power-cut restart shows the weather immediately             */
 	Weather.restore(date, now);

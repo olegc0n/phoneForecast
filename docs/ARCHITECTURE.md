@@ -193,6 +193,85 @@ transform attribute makes Chrome throw for every frame after it.
 
 ---
 
+## The sky
+
+`src/core/sky.js` draws the current weather as a picture, in the block between
+the date and the evening forecast (54vw..107vw from the top; `#sky` sits at
+`top: -12vw` inside `#now`, which keeps its height, so `#forecast` stays at
+108vw). It replaced the weather icon, today's low and high, the three bars and
+the whole sunrise / day length / sunset / moon row.
+
+```
+#sky_back    canvas, whole screen, z 1   rain, small flakes, puddles, lying snow
+#sky_svg     inside #wrapper, z 2        arc, sun/moon, stars, clouds, bolt, windsock
+numbers      inside #wrapper             #temperature, wind, humidity, pressure (View)
+#cat_stage   z 3                         Lili
+#sky_front   canvas, whole screen, z 4   near snow crystals, drops off her umbrella
+```
+
+**Units.** The svg's viewBox is 100 x 53 over a 100vw x 53vw box, so one unit is
+one vw. The canvases use the same units, measured off the svg's own rect (not
+`window.innerWidth`), with the backing store at the canvas rect x
+`devicePixelRatio`, capped at 2: on the G4's 3x screen a full-screen canvas
+cleared twice a frame costs more than thin rain gains from it.
+
+**Data flow.** `weather.js` keeps a sky state next to what it paints - the
+present's icon code and `cloudness`, the wind, and every day's sunrise, sunset
+and `moon_code` - and hands it over in `apply()` with the same stamp View gets
+(`Sky.feed(state, asOf)`), so the sky expires with the numbers. `#sky` itself is
+a View field (`sector_sky`, class type), so it appears with the data and fades
+with it like everything else. `clock.js` calls `Sky.minute(date)` every minute:
+the sun and moon walk the arc by the clock, not by the network, and at midnight
+tomorrow's sunrise is already in hand. Today is found by date
+(`Sky.pickDays`), so a file written yesterday still gives today's sun.
+
+The icon code is read with `Weather.splitCode` - the same parser the cat uses -
+then forced so it reads: a storm is heavy rain, heavy anything is overcast, rain
+from a clear sky or one cloud gets two clouds. `bkn` with `cloudness <= 0.25` is
+one cloud, otherwise two.
+
+**The shelter hook, and why it is a hook.** Core never looks at the cat, but
+the rain must stop on her umbrella. `cat.js` registers `Sky.shelter(fn)`; the
+sky calls it each frame while something falls and gets back
+`{outline: [[x, y] ...], floor: y}` in screen px, or `outline: null` when she
+is not holding the umbrella. The outline is the dome of `wUmbrella` (half an
+ellipse, rx 40 ry 36, on the rim at y -52 in its own coordinates) through its
+`getScreenCTM()`, so it follows every turn, hop and paw angle. The sky turns it
+into a height map; drops that reach it splash on the front canvas and water
+drips off the lower rim end. `floor` is where her feet stand, from the layout's
+own numbers. With no hook (no cat) the rain lands 3 units above the bottom. A
+hook that throws is ignored, not counted.
+
+**The loop.** A `setTimeout` loop like `anim.js`, not rAF, for the same reason:
+20 fps while rain, snow, sleet or a storm is on screen, 12 otherwise. Stopped
+while the page is hidden or there is no current data. In the cat's quiet hours
+(`cat_quiet_from..cat_quiet_to`, overlaid by `settings.js`) it does not run at
+all: one still frame a minute, in which the lying snow still catches up. While
+`#wrapper` carries `.hidden` the canvases are cleared and hidden. Attributes are
+written only when they change, rounded so a slow cloud or a calm sock is not
+rewritten every frame; stars twinkle on every third frame.
+
+**Faults.** The sky has its own guard, not the cat's `Guard`: a sky fault must
+not count against her, and core cannot depend on her. Three faults in a minute
+stop the animation for the session; what is drawn stays, and the numbers are
+View's, so the forecast is untouched.
+
+**Previews.** Rain and snow may not come during a test week, so the test menu
+(gear -> ТЕСТ АНИМАЦИЙ -> the SKY group) can ask for any state:
+`Sky.preview(key)` with clear, 1 or 2 clouds, overcast, light/moderate/heavy
+rain or snow, sleet, storm, wind 0/4/10, day/night flip, or "play a day" (an
+hour a second). They add up, change the picture and never the numbers, and go
+back to the real weather after ten minutes on their own. Choosing one steps the
+menu aside; a tap anywhere brings it back. A rain or snow preview also dresses
+her for it (`dress()` asks `Sky.previewing()` and calls `Wardrobe.set`), so the
+umbrella can be seen catching the rain.
+
+`node tools/check-sky.js` covers the geometry, the moon, the code mapping, the
+windsock, the loop's modes and the umbrella, on a fake DOM built from the real
+markup's ids.
+
+---
+
 ## Coordinates
 
 Stage-relative **percent**, everywhere. Not `vw`, not pixels.
@@ -204,3 +283,7 @@ Stage-relative **percent**, everywhere. Not `vw`, not pixels.
 
 `#cat_stage` must be `position: fixed`. `#wrapper` is absolutely positioned, so
 the body has no height and a non-fixed stage collapses to zero.
+
+The sky block is the one exception, because it is part of the forecast: it is
+in the forecast's `vw`, and its canvases measure themselves and the svg rather
+than the window (see *The sky*).

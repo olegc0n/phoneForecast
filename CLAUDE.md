@@ -22,17 +22,19 @@ Offline harnesses (each one is a self-contained test suite; run the one that mat
 node tools/check-weather.js [real.json]   # weather.js: fact vs hourly, staleness, due(), quota logic
 node tools/check-wardrobe.js              # wardrobe.js: outfit ladder, night, scene leftovers
 node tools/check-settings.js              # settings.js + weather.js: overrides, blanks, request spending
+node tools/check-sky.js                   # sky.js (+ weather.js): arc, moon, code mapping, windsock, loop modes, umbrella
+node tools/check-scenes.js                # every scene played through on a fake DOM
 node tools/check-plan.js [--full] [--weather clear|rain|snow|hot|none] [--special] [--json]
 ```
 
-The first three print PASS/FAIL lines and exit non-zero on failure. `check-plan.js` prints the generated day and does not assert anything. Each harness loads the **real** source files into a `vm` sandbox and fakes only the browser. They never touch the network.
+The PASS/FAIL harnesses (all but `check-plan.js`) print PASS/FAIL lines and exit non-zero on failure. `check-plan.js` prints the generated day and does not assert anything. Each harness loads the **real** source files into a `vm` sandbox and fakes only the browser. They never touch the network.
 
 On the device: `adb logcat -s Lili` (the page console and lifecycle trace are piped there). `adb shell am start -n com.lili.informer/.MainActivity -e ep <episode_id>` plays one animation, and `-e plan 1` dumps today's schedule.
 
 ## Hard constraints
 
 - **ES5 only, plain globals, no modules.** The target is WebView ~69, so don't use `let`/`const`, arrow functions, template literals or `class`. Each file defines an IIFE global (`var Weather = (function(){...})()`).
-- **Load order is the `MODULES` array in `tools/build.js`.** A new `src/` file does nothing until it is added there, in dependency order (`dom` first, `bus` before emitters, `rig` before `anim`, `boot` last). If the studio needs it too, add it to `STUDIO_MODULES` as well.
+- **Load order is the `MODULES` array in `tools/build.js`.** A new `src/` file does nothing until it is added there, in dependency order (`dom` first, `bus` before emitters, `sky` after `weather` and before `clock`, `rig` before `anim`, `boot` last). If the studio needs it too, add it to `STUDIO_MODULES` as well.
 - **The API quota is 30 requests/day.** Never write code or tests that call the Yandex API to "see what happens". Use `check-weather.js` with a synthetic or captured response. App launches must stay free: `Weather.restore()` sets `lastcall` from the cached file's timestamp. Settings saves only re-fetch when the key or URL actually changed.
 - **The API key never goes in git.** The real key and coordinates live in `.local/config.json` (gitignored), and `build.js` substitutes them at build time. `tools/yandex-check.html` holds a key when in use, so don't commit a real one there either.
 
@@ -50,11 +52,13 @@ The config block at the top of `src/informer.base.html` is plain `var` globals. 
 ## Architecture
 
 **Two halves that only meet on `Bus`** (`src/core/bus.js`):
-- `src/core/`: the forecast. It is started first and unconditionally in `boot.js` (`Settings.load` → `Weather.restore` → `Clock.start`). It must never reference the cat.
+- `src/core/`: the forecast. It is started first and unconditionally in `boot.js` (`Settings.load` → `Sky.init` → `Weather.restore` → `Clock.start`). It must never reference the cat.
 - `src/cat/`: Lili. `Cat.init()` and `SettingsUI.init()` run inside `Guard.run`. Three faults within one minute disable the cat for the session, and the clock carries on. Anything optional or cat-related goes through `Guard`.
 - `Bus.on(topic, fn, replay)` keeps the last payload per topic. Weather is published as *state*, so a subscriber that arrives late (the cat starts after the forecast paints) must pass `replay` to receive it.
 
-**Weather** (`weather.js`) stores the whole raw API response. While the response is fresher than `timeout` it shows `fact`; after that it shows the hourly entry for the current hour (up to 48 h ahead). `Clock`'s minute tick calls `Weather.rehour()` and `Weather.due()`. `Weather.status()` → `fact | hour | stale-fact`, and only `stale-fact` counts as a real failure.
+**Weather** (`weather.js`) stores the whole raw API response. While the response is fresher than `timeout` it shows `fact`; after that it shows the hourly entry for the current hour (up to 48 h ahead). `Clock`'s minute tick calls `Weather.rehour()`, `Weather.due()` and `Sky.minute()`. `Weather.status()` → `fact | hour | stale-fact`, and only `stale-fact` counts as a real failure.
+
+**Sky** (`src/core/sky.js`, ARCHITECTURE.md "The sky") is the current-weather block between the date and `#forecast`: an svg arc the sun walks sunrise→sunset (the moon sunset→next sunrise), clouds, a windsock, the temperature and wind/humidity/pressure as HTML over it (View still writes those ids), and rain/snow on two full-screen canvases (`#sky_back` behind the forecast and Lili, `#sky_front` in front of her). `Weather.apply()` hands it a sky state (`Sky.feed`, same stamp as View; `#sky` is itself a View `sector_` field, so it fades with the data). Its own `setTimeout` loop: 20 fps while something falls, 12 otherwise, off while hidden or without data, one still frame a minute in the quiet hours. It has its own fault guard (not `Guard`). Core never looks at the cat: `cat.js` registers `Sky.shelter(fn)`, which returns the umbrella outline (from `wUmbrella`'s `getScreenCTM()`) and her floor in screen px. The test menu's SKY group calls `Sky.preview(key)` (reverts after 10 min); `cat.js` `dress()` reads `Sky.previewing()` to put the umbrella on for a rain preview. The sky svg and canvases are in `vw`/sky units (1 unit = 1vw), not stage percent.
 
 **Cat layers, bottom up:** `rig.js` (pose) → `anim.js` (timer-driven frame loop, five fps tiers, *not* rAF) → `alive.js` (springs/micro-motion) → `actions.js` (verbs) → `beats.js` (beat vocabulary, cursor-timed) → `scenes.js` (animations as data) / `episodes.js` (17 legacy hand-written animations plus the weighted picker) → `plan.js` (the whole day planned at 00:00) → `cat.js` (the one life loop; also `Cat.play/plan/home/back`, which `MainActivity.java` calls through `evaluateJavascript`, so keep those names stable).
 

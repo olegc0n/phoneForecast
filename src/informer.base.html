@@ -10,10 +10,6 @@ var api_url = 'https://api.weather.yandex.ru/v2/forecast'; //без lat/lon - о
 var lat = 53.9; //Широта
 var lon = 27.56; //Долгота 
 
-var wind_max = 15; //Скорость ветра, максимум, м/с
-var pressure_min = 710; //Давление, минимум, мм рт ст
-var pressure_max = 770; //Давление, максимум, мм рт ст
-
 var day = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 var period = {morning: 'утром', day: 'днём', evening: 'вечером', night: 'ночью', day_day: 'день', day_night: 'ночь'};
 
@@ -130,6 +126,24 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 #cat_hit {
 	position: absolute;
 	pointer-events: auto;
+}
+/* Rain and snow (sky.js) fall over the whole screen, down to her floor: one
+ * canvas behind the forecast and behind her, one in front of her and below
+ * the gear and the menus. Shown only while something is on them. */
+.sky_canvas {
+	display: none;
+	position: fixed;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+#sky_back {
+	z-index: 1;
+}
+#sky_front {
+	z-index: 4;
 }
 /* ---------------- the gear, and what is behind it ---------------- */
 /* Always drawn, deliberately faint: this is a weather display first, and the
@@ -296,6 +310,29 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 	text-align: center;
 	letter-spacing: 0.2vw;
 }
+/* SKY: preview the sky block's states on the phone (Sky.preview) */
+#cat_menu .sky_hd {
+	font-size: 3vw;
+	line-height: 1.4;
+	color: #8fd6a4;
+	padding: 1.4vw 0 1.6vw;
+	letter-spacing: 0.15vw;
+}
+#cat_menu .sky_grid {
+	overflow: hidden;            /* holds the floats */
+	margin-bottom: 1.6vw;
+}
+#cat_menu .sky_grid button {
+	float: left;
+	width: 32%;
+	margin: 0 2% 1.6vw 0;
+	padding: 2.6vw 0.5vw;
+	font-size: 3.2vw;
+	text-align: center;
+}
+#cat_menu .sky_grid button:nth-child(3n) {
+	margin-right: 0;
+}
 /* today's schedule, on the phone, without adb */
 #cat_plan_view {
 	font: 3.1vw/1.5 monospace;
@@ -359,42 +396,83 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 			<div id="date" class="value sector_date"></div>
 		</div>
 		<div id="now" class="spacer">
-			<div id="icon" class="value sector_icon" data-type="class"></div>
-			<div id="temperature_block">
-				<div id="temperature" class="value sector_temperature"></div>
-				<div id="temperature_sub">
-					<div class="sector_min">
-						<span id="min" class="value"></span>
-						<span id="min_date" class="value"></span>
-					</div>
-					<div class="sector_max">
-						<span id="max" class="value"></span>
-						<span id="max_date" class="value"></span>
-					</div>
+			<!-- The sky: the current weather as a picture (src/core/sky.js). It starts
+			     12vw above #now and is 53vw tall, so #now keeps its height and the
+			     forecast below stays at 108vw. One svg unit is 1vw. The whole block is
+			     a View field (sector_sky): it appears with the data and fades with it.
+			     The numbers are View's, as before; sky.js only draws. -->
+			<div id="sky" class="value sector_sky" data-type="class">
+				<svg id="sky_svg" viewBox="0 0 100 53" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+					<defs>
+						<radialGradient id="skyGSun" cx="0.42" cy="0.4" r="0.65">
+							<stop offset="0" stop-color="#fff7cf"/>
+							<stop offset="0.55" stop-color="#ffd23f"/>
+							<stop offset="1" stop-color="#ffb21e"/>
+						</radialGradient>
+						<radialGradient id="skyGGlow">
+							<stop offset="0.35" stop-color="#ffd76c" stop-opacity="0.35"/>
+							<stop offset="1" stop-color="#ffd76c" stop-opacity="0"/>
+						</radialGradient>
+						<radialGradient id="skyGMoonGlow">
+							<stop offset="0.4" stop-color="#e9e3b8" stop-opacity="0.18"/>
+							<stop offset="1" stop-color="#e9e3b8" stop-opacity="0"/>
+						</radialGradient>
+						<linearGradient id="skyCloudDay" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="20">
+							<stop offset="0" stop-color="#e3edff"/>
+							<stop offset="1" stop-color="#8db2f2"/>
+						</linearGradient>
+						<linearGradient id="skyCloudGrey" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="20">
+							<stop offset="0" stop-color="#c4ccd8"/>
+							<stop offset="1" stop-color="#7c899d"/>
+						</linearGradient>
+						<linearGradient id="skyCloudNight" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="20">
+							<stop offset="0" stop-color="#8f9ab0"/>
+							<stop offset="1" stop-color="#4f5a70"/>
+						</linearGradient>
+						<linearGradient id="skyCloudNightGrey" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="20">
+							<stop offset="0" stop-color="#717a8b"/>
+							<stop offset="1" stop-color="#3d4555"/>
+						</linearGradient>
+						<symbol id="sky_cloud" viewBox="0 0 40 20" width="40" height="20" overflow="visible">
+							<circle cx="13" cy="12" r="7"/>
+							<circle cx="21" cy="8.5" r="8.5"/>
+							<circle cx="29" cy="12.5" r="6"/>
+							<rect x="6" y="11" width="29" height="8" rx="4"/>
+						</symbol>
+					</defs>
+					<g id="sky_stars" style="display:none"></g>
+					<path id="sky_arc_rest" fill="none" stroke="#ffffff" stroke-opacity="0.24" stroke-width="0.42" stroke-dasharray="0.9 1.5" stroke-linecap="round"/>
+					<path id="sky_arc_done" fill="none" stroke-width="0.5" stroke-linecap="round"/>
+					<line x1="2" y1="43" x2="98" y2="43" stroke="#ffffff" stroke-opacity="0.14" stroke-width="0.3"/>
+					<circle cx="5" cy="43" r="0.75" fill="#ffffff" fill-opacity="0.45"/>
+					<circle cx="95" cy="43" r="0.75" fill="#ffffff" fill-opacity="0.45"/>
+					<g id="sky_sun" style="display:none">
+						<circle r="9" fill="url(#skyGGlow)"/>
+						<g id="sky_rays" stroke="#ffc93c" stroke-width="0.7" stroke-linecap="round"></g>
+						<circle r="4.4" fill="url(#skyGSun)"/>
+					</g>
+					<g id="sky_moon" style="display:none">
+						<circle r="9" fill="url(#skyGMoonGlow)"/>
+						<circle r="4.3" fill="#2b313c" stroke="#56606f" stroke-width="0.3"/>
+						<path id="sky_moon_lit" fill="#f6e690"/>
+					</g>
+					<g id="sky_clouds"></g>
+					<circle id="sky_ring" r="5" fill="none" stroke-width="0.45" stroke-dasharray="1.1 0.8" style="display:none"/>
+					<rect id="sky_flash" x="0" y="-4" width="100" height="47" fill="#e8eeff" opacity="0"/>
+					<path id="sky_bolt" fill="#fff4a3" opacity="0" d="M0,0 L-3,7 L-0.6,7 L-2.4,14 L3.4,4.6 L0.9,4.6 L2.8,0 Z"/>
+					<line x1="50" y1="10.6" x2="50" y2="43" stroke="#c3c9d2" stroke-width="0.7"/>
+					<circle cx="50" cy="10.4" r="0.7" fill="#e3e7ec"/>
+					<path d="M47.6,43 L50,40.8 L52.4,43 Z" fill="#8b929c"/>
+					<g id="sky_sock" transform="translate(50.35,11)"></g>
+				</svg>
+				<div id="temperature" class="value sector_temperature shade"></div>
+				<div id="sky_stats" class="shade">
+					<div class="st sector_wind"><span id="wind_icon" class="value ic wind_icon sector_wind_icon" data-type="style"></span><b id="wind" class="value"></b><i>м/с</i></div>
+					<div class="st sector_humidity"><span class="ic humidity_icon"></span><b id="humidity" class="value"></b><i>%</i></div>
+					<div class="st sector_pressure"><span class="ic presure_icon"></span><b id="pressure" class="value"></b><i>мм рс</i></div>
 				</div>
-			</div>
-			<div id="wind_humidity_pressure">
-				<div class="sector_wind">
-					<span id="wind_icon" class="value wind_icon sector_wind_icon" data-type="style"></span>
-					<span><span id="wind" class="value"></span> м/с</span>
-				</div>
-				<div class="wind_humidity_pressure_bar wind_pressure_bar sector_wind_progress">
-					<div id="wind_progress" class="value wind_humidity_progress" data-type="style"></div>
-				</div>
-				<div class="sector_humidity">
-					<span id="humidity_icon" class="humidity_icon"></span>
-					<span><span id="humidity" class="value"></span> %</span>
-				</div>
-				<div class="wind_humidity_pressure_bar humidity_bar sector_humidity_progress">
-					<div id="humidity_progress" class="value wind_humidity_progress" data-type="style"></div>
-				</div>
-				<div class="sector_pressure">
-					<span id="presure_icon" class="presure_icon"></span>
-					<span><span id="pressure" class="value"></span> мм рс</span>
-				</div>
-				<div class="wind_humidity_pressure_bar pressure_bar sector_pressure_progress">
-					<div id="pressure_progress" class="value" data-type="style"></div>
-				</div>
+				<div id="sky_cl" class="sky_corner l shade" style="display:none"><div id="sky_li" class="ci rise"></div><span id="sky_lt"></span></div>
+				<div id="sky_cr" class="sky_corner r shade" style="display:none"><div id="sky_ri" class="ci set"></div><span id="sky_rt"></span></div>
 			</div>
 		</div>
 		<div id="forecast" class="spacer">
@@ -429,35 +507,18 @@ var app_log           = true;      //trace everything to logcat: adb logcat -s L
 				</div>
 			</div>
 		</div>
-		<div id="riseset">
-			<div class="riseset_block sector_rise">
-				<div class="rise"></div>
-				<div><span id="rise" class="value"></span></div>
-			</div>
-			<div id="duration_block" class="sector_duration_hour">
-				<div id="duration">
-					<span id="duration_hour" class="value"></span> ч <span id="duration_minute" class="value"></span> мин
-				</div>
-				<div id="duration_bar">
-					<div id="duration_time" class="value" data-type="style"></div>
-					<div id="duration_progress" class="value" data-type="style"></div>
-				</div>
-				<div id="duration_left" class="value"></div>
-			</div>
-			<div class="riseset_block sector_set">
-				<div class="set"></div>
-				<div><span id="set" class="value"></span></div>
-			</div>
-			<div id="moon" class="value sector_moon" data-type="class"></div>
-		</div>
 	</div>
 	<div id="cat_stage_back"><div id="cat_props_back"></div></div>
+	<!-- rain and snow (sky.js): this one behind the forecast and behind her -->
+	<canvas id="sky_back" class="sky_canvas"></canvas>
 	<!-- ============ cat stage: above the forecast, click-through except her hitbox ============ -->
 	<div id="cat_stage">
 		<div id="cat_holder"><!--INJECT:CAT_SVG--></div>
 		<div id="cat_props"></div>
 		<div id="cat_hit"></div>
 	</div>
+	<!-- ...and this one in front of her: near snow, drops off her umbrella -->
+	<canvas id="sky_front" class="sky_canvas"></canvas>
 <div id="wx_stale"></div>
 
 <!--INJECT:JS-->
@@ -515,69 +576,107 @@ body {
 	position: relative;
 	height: 33vw;
 }
-#temperature_block {
+/* ---------------- the sky (src/core/sky.js) ----------------
+ * 54vw..107vw from the top of the page: 12vw above #now, 53vw tall, so #now
+ * keeps its height and #forecast does not move. Everything inside is in vw,
+ * and the svg's viewBox is 100 x 53, so one svg unit is one vw. */
+#sky {
 	position: absolute;
-	top: -8vw;
 	left: 0;
-	width: 35%;
+	top: -12vw;
+	width: 100%;
+	height: 53vw;
 }
-#temperature::after, #feels::after, #forecast_temperature_0::after, #forecast_temperature_1::after, #temperature_alt::after, #min::after, #max::after {
+/* a preview from the test menu with no forecast in hand still shows its sky */
+#sky.sky_force {
+	opacity: 1;
+}
+#sky_svg {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+	/* its own layer: the clouds and the sock move every frame, and without
+	   this each move re-rasters the blurred text-shadow of the numbers */
+	will-change: transform;
+}
+.shade {
+	text-shadow: 0 0 1.2vw #000, 0 0 2.6vw #000;
+}
+#temperature::after, #forecast_temperature_0::after, #forecast_temperature_1::after {
 	content: "\00B0";
 }
+/* left of the pole, right edge at 45vw, the baseline just above the horizon */
 #temperature {
-	font-size: 21vw;
+	position: absolute;
+	right: 55vw;
+	top: 26vw;
+	font-size: 19vw;
+	line-height: 1;
+	white-space: nowrap;
 }
-#temperature_sub {
-	display: flex;
-}
-#temperature_sub div {
-	width: 50%;
-	font-size: 5vw;
-}
-#minmax_first {
+/* right of the pole: wind, humidity, pressure */
+#sky_stats {
+	position: absolute;
+	left: 55vw;
+	top: 25.6vw;
 	text-align: left;
 }
-#minmax_second {
-	text-align: right;
-}
-#temperature_alt {
-	font-size: 5vw;
-	text-align: left;
-}
-#temperature_sub span {
-	display: block;
-	padding-bottom: 2vw;
-}
-#icon {
-	position: absolute;
-	top: -2vw;
-	width: 35vw;
-	height: 35vw;
-	left: 53%;
-	transform: translate(-50%, 0);
-	background-repeat: no-repeat;
-}
-
-#wind_humidity_pressure {
-	position: absolute;
-	right: 0;
-	top: -4vw;
-	width: 28%;
-}
-#wind_humidity_pressure div {
+#sky_stats .st {
 	display: flex;
 	align-items: center;
+	height: 5vw;
+	margin-bottom: 0.6vw;          /* not `gap`: flex gap is Chrome 84, the WebView is 69 */
 	white-space: nowrap;
-    overflow: hidden;
 }
-#wind, #humidity, #pressure  {
-	font-size: 6vw;
-	padding-left: 1vw;
+#sky_stats .ic {
+	flex: none;
+	width: 4vw;
+	height: 4vw;
+	background-size: 4vw 4vw;
+	background-repeat: no-repeat;
+	background-position: center;
 }
-#wind_humidity_pressure .wind_icon, #wind_humidity_pressure .humidity_icon, #wind_humidity_pressure .presure_icon {
-	min-height: 6vw;
-    min-width: 6vw;
-	background-size: 6vw 6vw;
+#sky_stats b {
+	font-weight: normal;
+	font-size: 4.6vw;
+	padding-left: 0.8vw;
+}
+#sky_stats i {
+	font-style: normal;
+	font-size: 2.6vw;
+	color: #c9ccc6;
+	padding-left: 0.6vw;
+	padding-top: 1.1vw;
+}
+/* sunrise and sunset on the ground at either end of the arc; at night they
+   swap, so the left corner is always where the arc began */
+.sky_corner {
+	position: absolute;
+	top: 44vw;
+	display: flex;
+	align-items: center;
+}
+.sky_corner.l {
+	left: 1.5vw;
+}
+.sky_corner.r {
+	right: 1.5vw;
+	flex-direction: row-reverse;     /* the icon at the outer edge */
+}
+.sky_corner .ci {
+	width: 5.6vw;
+	height: 5.6vw;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+.sky_corner span {
+	font-size: 4.4vw;
+	line-height: 1.1;
+	padding: 0 0.8vw;
 }
 #forecast {
 	display: flex;
@@ -587,36 +686,6 @@ body {
 	background-repeat: no-repeat;
 	height: 5vw;
     width: 5vw;
-}
-.wind_humidity_pressure_bar {
-	position: relative;
-	height: 2vw;
-	background: linear-gradient(to right, #fff, #ff0000);
-	border-radius: 2vw;
-	margin: 1vw 0 3vw;
-	width: 100%;
-}
-.wind_bar {
-	background: linear-gradient(to right, #fff, #ff0000);
-}
-.pressure_bar {
-	background: #006bff;
-}
-.humidity_bar {
-	background: linear-gradient(to right, #fff, #006bff);
-}
-.wind_humidity_progress, #pressure_progress {
-	position: absolute;
-	right: 0;
-	height: 2vw;
-	border-radius: 2vw;
-	border-radius: 0 2vw 2vw 0;
-}
-.wind_humidity_progress {
-	background-color: #444;
-}
-#pressure_progress {
-	background: #ff0000;
 }
 .forecast_part {
 	width: 50%;
@@ -653,63 +722,6 @@ body {
 .forecast_wind {
 	font-size: 5vw;
 	padding-left: 1vw;
-}
-#riseset {
-	position: relative;
-	display: flex;
-	align-items: center;
-    justify-content: center;
-	padding-bottom: 2.65vw;
-}
-.riseset_block {
-	width: 20%;
-}
-.riseset_block span {
-	font-size: 5vw;
-}
-.rise, .set {
-	background-position: center;
-	background-size: 10vw;
-	height: 10vw;
-	background-repeat: no-repeat;
-	padding-bottom: 2vw;
-}
-#duration_block {
-	width: 40%;
-}
-#duration {
-	font-size: 5vw;
-}
-#duration_bar {
-	position: relative;
-	width: 100%;
-	height: 2vw;
-	background-color: #727272;
-	border-radius: 1vw;
-	margin: 2vw 0;
-}
-#duration_time {
-	position: absolute;
-	left: 10%;
-	width: 80%;
-	height: 100%;
-	background-color: #ffd76c;
-	border-radius: 1vw;
-}
-#duration_progress {
-	width: 30%;
-	height: 100%;
-	background-color: #000;
-	opacity: 0.4;
-	border-radius: 1vw 0 0 1vw;
-}
-#duration_left {
-	font-size: 4vw;
-}
-#moon {
-	width: 15vw;
-    height: 15vw;
-	background-repeat: no-repeat;
 }
 .wind_icon {
 	transition: transform 1s ease-in-out;
@@ -804,54 +816,6 @@ body {
 }
 .skc_n {
 	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='50%25' x2='50%25' y1='0%25' y2='98.667%25'%3E%3Cstop offset='0%25' stop-color='%23FFC227'/%3E%3Cstop offset='100%25' stop-color='%23FFB300'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23a)' fill-rule='evenodd' d='M14.413 4.587c2.695 1.137 4.587 3.804 4.587 6.913 0 4.142-3.358 7.5-7.5 7.5-3.109 0-5.776-1.892-6.913-4.587.896.378 1.88.587 2.913.587 4.142 0 7.5-3.358 7.5-7.5 0-1.033-.209-2.018-.587-2.913z'/%3E%3C/svg%3E");
-}
-.moon_0{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a20 20 0 110 120 20 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_1{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a20 20 0 110 120 15 20 0 100-120' fill='%23727272'/%3E%3Cpath d='M75 15a15 20 0 110 120 20 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_2{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a20 20 0 110 120 10 20 0 100-120' fill='%23727272'/%3E%3Cpath d='M75 15a10 20 0 110 120 20 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_3{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a20 20 0 110 120 5 20 0 100-120' fill='%23727272'/%3E%3Cpath fill='%23ffe56a' d='M75 15a5 20 0 110 120 20 20 0 110-120'/%3E%3C/svg%3E");
-}
-.moon_4{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a20 20 0 110 120V15' fill='%23727272'/%3E%3Cpath d='M75 15v120a20 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_5{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23727272' d='M75 15a20 20 0 110 120 5 20 0 110-120'/%3E%3Cpath d='M75 15a5 20 0 100 120 20 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_6{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23727272' d='M75 15a20 20 0 110 120 10 20 0 110-120'/%3E%3Cpath d='M75 15a10 20 0 100 120 20 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_7{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a20 20 0 110 120 15 20 0 110-120' fill='%23727272'/%3E%3Cpath d='M75 15a15 20 0 100 120 20 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_8{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23727272' d='M75 15a20 20 0 110 120 20 20 0 110-120'/%3E%3C/svg%3E");
-}
-.moon_9{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a15 20 0 110 120 20 20 0 110-120' fill='%23727272'/%3E%3Cpath d='M75 15a20 20 0 110 120 15 20 0 100-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_10{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23727272' d='M75 15a10 20 0 110 120 20 20 0 110-120'/%3E%3Cpath d='M75 15a20 20 0 110 120 10 20 0 100-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_11{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a5 20 0 110 120 20 20 0 110-120' fill='%23727272'/%3E%3Cpath d='M75 15a20 20 0 110 120 5 20 0 100-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_12{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15v120a20 20 0 110-120' fill='%23727272'/%3E%3Cpath d='M75 15a20 20 0 110 120V15' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_13{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a5 20 0 100 120 20 20 0 110-120' fill='%23727272'/%3E%3Cpath d='M75 15a20 20 0 110 120 5 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_14{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23727272' d='M75 15a10 20 0 100 120 20 20 0 110-120'/%3E%3Cpath d='M75 15a20 20 0 110 120 10 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
-}
-.moon_15{
-	background-image: url("data:image/svg+xml,%3Csvg preserveAspectRatio='xMinYMid' viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M75 15a15 20 0 100 120 20 20 0 110-120' fill='%23727272'/%3E%3Cpath d='M75 15a20 20 0 110 120 15 20 0 110-120' fill='%23ffe56a'/%3E%3C/svg%3E");
 }
 </style>
 </body>

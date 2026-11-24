@@ -48,8 +48,9 @@ var Wardrobe = (function () {
 	function outfitFor(wx) {
 		if (!wx) return 'plain';
 
-		/* precipitation wins over temperature: wet is wet */
-		if (wx.precip === 'ra' || wx.precip === 'ra_sn') return 'rain';
+		/* precipitation wins over temperature: wet is wet. A thunderstorm counts
+		 * as rain even when the code names no rain - the sky draws it pouring. */
+		if (wx.precip === 'ra' || wx.precip === 'ra_sn' || (wx.isThunder && wx.precip !== 'sn')) return 'rain';
 		if (wx.precip === 'sn') return 'snow';
 
 		if (wx.temp !== null && wx.temp <= COLD) return 'cold';

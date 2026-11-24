@@ -21,8 +21,9 @@ var Clock = (function () {
 		 * holds 48 hours of hourly forecast, and the hour has changed. */
 		Weather.rehour(date, now);
 
-		/* keep the daylight progress bar moving between API calls */
-		Weather.riseset(View.data('rise'), View.data('set'), date);
+		/* The sun and the moon walk the sky's arc by the clock, between API
+		 * calls and across midnight. Sky catches its own faults. */
+		if (typeof Sky !== 'undefined') Sky.minute(date, now);
 
 		Bus.emit('minute', { date: date, now: now });
 

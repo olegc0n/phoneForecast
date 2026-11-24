@@ -87,7 +87,52 @@ var Cat = (function () {
 		 * nothing is lost by waiting.                                          */
 		if (Episodes.running()) return;
 
+		/* A sky preview from the test menu (SKY) dresses her for the rain or the
+		 * snow it shows, so the umbrella can be seen catching it. Only the
+		 * outfit, and through the wardrobe's own call; the preview ends by itself
+		 * and the next tick puts her back in what the real weather calls for. */
+		var pv = (typeof Sky !== 'undefined' && Sky.previewing) ? Sky.previewing() : null;
+		if (pv && pv.precip !== 'none') { Wardrobe.set(pv.precip === 'snow' ? 'snow' : 'rain'); return; }
+
 		Wardrobe.forWeather(wxNow(date || new Date()));
+	}
+
+	/* ---------------- her umbrella, for the sky's rain ----------------
+	 *
+	 * The sky (core/sky.js) draws rain over the whole screen and stops it on her
+	 * umbrella - but core never looks at the cat, so it asks through this hook
+	 * (Sky.shelter), several times a second while something falls. Cheap when
+	 * she is not holding the umbrella; one getScreenCTM when she is.
+	 *
+	 * The canopy in wUmbrella's own coordinates (cat.svg) is a dome on a rim:
+	 * near enough half an ellipse, rx 40 and ry 36, standing on y = -52. The
+	 * screen CTM carries everything between - paw, torso, spine, her world
+	 * transform, a turn or a hop - so the outline follows her.
+	 *
+	 * The floor is where her feet rest when she stands at her place: the
+	 * bottom of the feet in the artwork (y 247 of 262), measured from the
+	 * layout's own numbers, not read from the DOM.                          */
+	var FEET = 247 / 262;
+	var umbrellaEl = null;
+
+	function shelter() {
+		if (!alive) return null;
+		var box = Rig.stagePx();
+		var out = { outline: null, floor: (floorY + Rig.size.h * FEET) / 100 * box.h };
+		if (quiet || Wardrobe.wearing('hand') !== 'wUmbrella') return out;
+		if (!(Rig.get('wUmbrella', 'o') > 0.5) || Rig.get('catRoot', 'o') === 0) return out;
+		umbrellaEl = umbrellaEl || byId('wUmbrella');
+		if (!umbrellaEl || !umbrellaEl.getScreenCTM) return out;
+		var m = umbrellaEl.getScreenCTM();
+		if (!m) return out;
+		var pts = [];
+		for (var i = 0; i <= 20; i++) {
+			var ux = -40 + 4 * i;
+			var uy = -52 - 36 * Math.sqrt(Math.max(0, 1 - (ux / 40) * (ux / 40)));
+			pts.push([m.a * ux + m.c * uy + m.e, m.b * ux + m.d * uy + m.f]);
+		}
+		out.outline = pts;
+		return out;
 	}
 
 	/* ---------------- the alive layer ---------------- */
@@ -379,7 +424,8 @@ var Cat = (function () {
 			'<button class="wide" data-plan="1">TODAY&rsquo;S SCHEDULE</button>' +
 			'<button class="wide" data-act="sleep">SLEEP &mdash; quiet hours</button>' +
 			'<button class="wide" data-act="wake">WAKE UP</button>' +
-			'<div id="cat_plan_slot"></div>';
+			'<div id="cat_plan_slot"></div>' +
+			skyGroup();
 		for (var i = 0; i < list.length; i++) {
 			html += '<button data-ep="' + list[i].id + '">' + (i + 1) + '. ' + list[i].label +
 				'  <span style="color:#7a8a6a">' + Math.round(list[i].dur / 1000) + 's</span></button>';
@@ -389,20 +435,33 @@ var Cat = (function () {
 
 		on(menu, 'click', function (e) {
 			var t = e.target || e.srcElement;
-			var id = null, wantPlan = null, act = null;
+			var id = null, wantPlan = null, act = null, sky = null;
 			while (t && t !== menu) {
 				if (t.getAttribute) {
 					wantPlan = t.getAttribute('data-plan');
 					if (wantPlan) break;
 					act = t.getAttribute('data-act');
 					if (act) break;
+					sky = t.getAttribute('data-sky');
+					if (sky) break;
 					id = t.getAttribute('data-ep');
 					if (id) break;
 				}
 				t = t.parentNode;
 			}
-			if (e.stopPropagation && (id || wantPlan || act)) e.stopPropagation();
+			/* stopped here, or the tap that closes the menu would reach the body
+			 * handler below and open it again */
+			if (e.stopPropagation && (id || wantPlan || act || sky)) e.stopPropagation();
 			if (wantPlan) { Guard.run('test-plan', togglePlanView); return; }
+			if (sky) {
+				/* show the sky: the menu steps aside, a tap anywhere brings it back */
+				Guard.run('test-sky', function () {
+					if (typeof Sky !== 'undefined') Sky.preview(sky);
+					dress(new Date());
+					showMenu(false);
+				});
+				return;
+			}
 			if (act) {
 				/* the real quiet-hours path, so what you see is what happens at
 				 * eleven at night - the curl, the dim screen, the parked loop */
@@ -415,6 +474,43 @@ var Cat = (function () {
 			}
 			if (id) Guard.run('test-play', function () { play(id); });
 		});
+
+		/* With the menu stepped aside to show a sky preview, a tap anywhere but
+		 * on her brings it back. Not during an episode: that puts the menu back
+		 * itself when it ends. Back still leaves the test menu altogether. */
+		on(document.body, 'click', function () {
+			if (mode !== 'test' || !menu || menu.style.display !== 'none') return;
+			if (Episodes.running()) return;
+			Guard.run('test-menu-back', function () { showMenu(true); });
+		});
+	}
+
+	/* ---------------- SKY: the sky block's states, on demand ----------------
+	 *
+	 * Rain and snow may not happen for the whole of a test week, so the menu can
+	 * ask the sky (core/sky.js) for any of them. A preview changes the picture,
+	 * not the numbers, adds up (overcast, then rain, then wind 10) and goes back
+	 * to the real weather by itself after ten minutes, so a shelf display is never
+	 * left showing a sky that is not there. Labels come from Sky itself.      */
+	function skyGroup() {
+		if (typeof Sky === 'undefined' || !Sky.previews) return '';
+		var list = Sky.previews(), html = '<div class="sky_hd" id="cat_sky_hd">' + skyLine() + '</div>';
+		html += '<button class="wide" data-sky="' + list[0][0] + '">' + list[0][1].toUpperCase() + '</button>';
+		html += '<div class="sky_grid">';
+		for (var i = 1; i < list.length; i++) html += '<button data-sky="' + list[i][0] + '">' + list[i][1] + '</button>';
+		return html + '</div>';
+	}
+
+	/* what the sky is showing, for the menu and the debug overlay */
+	function skyLine() {
+		if (typeof Sky === 'undefined' || !Sky.status) return 'SKY &mdash; not loaded';
+		var s = Sky.status();
+		var what = s.cover + (s.precip !== 'none' ? ' + ' + s.precip + ' ' + ['light', 'moderate', 'heavy'][s.level] : '') +
+			(s.storm ? ' + storm' : '') + ', wind ' + (Math.round(s.wind * 10) / 10);
+		if (!s.preview) return 'SKY &mdash; real weather: ' + what;
+		var until = new Date(s.until);
+		return 'SKY &mdash; preview: ' + what + '. Real weather again at ' +
+			pad(until.getHours()) + ':' + pad(until.getMinutes()) + '. Tap the screen to come back here.';
 	}
 
 	/* Today's schedule on the phone itself. The adb dump is fine at a desk with a
@@ -457,6 +553,10 @@ var Cat = (function () {
 		LOG('showMenu(' + on + ') built=' + (!!menu) + ' mode=' + mode);
 		if (!menu) return;
 		menu.style.display = on ? '' : 'none';
+		if (on) {
+			var hd = byId('cat_sky_hd');
+			if (hd) hd.innerHTML = skyLine();
+		}
 	}
 
 	/* ---------------- debug overlay ---------------- */
@@ -475,6 +575,7 @@ var Cat = (function () {
 				'store ' + (Store.persistent() ? 'disk' : 'MEMORY'),
 				'wx ' + (wx ? wx.code + ' ' + wx.temp + 'C' : 'none'),
 				'wearing ' + (Wardrobe.current() || 'plain'),
+				skyDebug(),
 				'mode ' + (mode || 'choosing') + '  episode ' + (Episodes.running() || '-'),
 				planLine(),
 				'next ' + (Plan.upcoming(new Date(), 2).join('  ') || '-'),
@@ -485,6 +586,16 @@ var Cat = (function () {
 				ua ? ua[0] : 'ua?'
 			].join('<br>');
 		}, 1000);
+	}
+
+	/* one line of the sky's state, for the overlay */
+	function skyDebug() {
+		if (typeof Sky === 'undefined' || !Sky.status) return 'sky -';
+		var s = Sky.status();
+		return 'sky ' + s.mode + (s.mode === 'run' ? ' ' + s.fps + 'fps' : '') + ' ' + s.cover +
+			(s.precip !== 'none' ? ' ' + s.precip + s.level + ' n' + s.drops : '') +
+			(s.canopy ? ' umbrella' : '') + (s.preview ? ' PREVIEW ' + s.preview : '') +
+			(s.faults ? ' faults ' + s.faults + (s.dead ? ' DEAD' : '') : '');
 	}
 
 	/* one line of the day's schedule, for the overlay */
@@ -562,6 +673,10 @@ var Cat = (function () {
 
 		on(window, 'resize', function () { Guard.run('layout', layout); });
 
+		/* The sky's rain stops on her umbrella. The sky is core and never looks at
+		 * her, so it asks this side where the umbrella is (shelter() above). */
+		if (typeof Sky !== 'undefined' && Sky.shelter) Sky.shelter(shelter);
+
 		/* `true` = replay: boot.js paints the stored forecast before starting the
 		 * cat, so the first payload is normally already gone by the time we get
 		 * here. Without this she starts every restart not knowing the weather. */
@@ -625,6 +740,8 @@ var Cat = (function () {
 
 	function disable() {
 		alive = false;
+		/* no cat, no umbrella: the rain goes back to reaching the floor */
+		try { if (typeof Sky !== 'undefined' && Sky.shelter) Sky.shelter(null); } catch (e) {}
 		if (nextTimer) { clearTimeout(nextTimer); nextTimer = null; }
 		try { Episodes.abort(); } catch (e) {}
 		try { Anim.clear(); Anim.to('OFF'); } catch (e) {}
