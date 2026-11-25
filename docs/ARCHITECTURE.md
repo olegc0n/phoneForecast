@@ -230,6 +230,40 @@ then forced so it reads: a storm is heavy rain, heavy anything is overcast, rain
 from a clear sky or one cloud gets two clouds. `bkn` with `cloudness <= 0.25` is
 one cloud, otherwise two.
 
+A partly cloudy cloud never leaves the sky empty: each one has a twin `<use>`
+one screen-width (`LANE`, 100 units) behind it. The twin starts in on the left
+the moment the cloud starts out on the right, so a whole cloud's worth is always
+on screen. Once the cloud is fully off the right edge it takes the twin's place.
+Rain falls from whichever copy is on screen. Overcast needs no twins: its rows
+are spaced to wrap without a gap. `check-sky.js` runs one cloud across two and a
+half crossings and fails if less than a whole cloud is ever visible.
+
+Under overcast the sun or moon is dimmed to 0.4 behind the clouds, and over them
+a glow (`#sky_halo`, `skyGHaloSun`/`skyGHaloMoon`) and a thick dashed outline
+(`#sky_ring`) show where it is, bright enough to find from across the room.
+
+**The turf under the windsock.** The mast stands in a concrete footing on a flat
+strip of grass (x 39..61) with a thin edge of soil below the horizon, drawn into
+`#sky_land`. It follows the weather:
+- **Temperature** (`temp` in the sky state, from `fact.temp`; the wardrobe's
+  thresholds): frozen at 0 and below (pale, stiff white blades, frost glints),
+  muted below 10, green below 23, lush with four flowers from 23. The grass
+  gradient's stops (`#sky_turf_a/b`) are set from the state; darker at night.
+- **Rain floods it.** `gWater` (0..1) rises while it rains - about 15 / 10 / 6
+  minutes to full for light / moderate / heavy - and drains over about an hour.
+  The water sits flat on the strip, widening and deepening as it fills; past 0.4
+  it overflows into a puddle on the ground either side, and past 0.45 it runs
+  off both ends. Rings spread where drops land, on the strip or a puddle by
+  width. Below 0 the same water is a sheet of ice: no rings, no run-off. The
+  first real data after a start finds it at 0.7 if it is already raining.
+- **Lying snow** (`gSnow`, the floor's) caps it in white and hides the blades.
+The shape is rebuilt only when what it shows changes (a key of state, day,
+snow and water in 5 % steps: a few times an hour in real weather); every frame
+only the rings (`#sky_turf_fx`), the run-off dashes and the glints move. In the
+quiet hours the level still catches up once a minute. A preview fills and drains
+in seconds, and the real level is put back when it ends; the SKY group's
+"Frost -8°" and "Heat +28°" change only the turf, never the numbers.
+
 **The shelter hook, and why it is a hook.** Core never looks at the cat, but
 the rain must stop on her umbrella. `cat.js` registers `Sky.shelter(fn)`; the
 sky calls it each frame while something falls and gets back

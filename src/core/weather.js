@@ -270,6 +270,7 @@ var Weather = (function () {
 			code: f.icon || '',
 			cloudness: typeof f.cloudness === 'number' ? f.cloudness : null,
 			wind: typeof f.wind_speed === 'number' ? f.wind_speed : 0,
+			temp: typeof f.temp === 'number' ? f.temp : null,     /* for the turf: frozen, green, lush */
 			days: days
 		};
 	}

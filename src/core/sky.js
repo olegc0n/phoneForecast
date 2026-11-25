@@ -233,6 +233,12 @@ var Sky = (function () {
 		]
 	};
 	var OVC_SPAN = 4 * 33.5;
+	/* Partly cloudy: every cloud has a twin one screen-width behind it, so the
+	 * next one starts in on the left the moment this one starts out on the right
+	 * and there is always a whole cloud's worth on screen - never a stretch of
+	 * clear sky with one cloud. Once a cloud is fully off the right edge it takes
+	 * its twin's place and the twin drops back a screen. */
+	var LANE = 100;
 
 	/* ================================================================== *
 	 *  state                                                             *
@@ -242,7 +248,8 @@ var Sky = (function () {
 	var IDS = {
 		box: 'sky', svg: 'sky_svg', stars: 'sky_stars', arcRest: 'sky_arc_rest', arcDone: 'sky_arc_done',
 		sun: 'sky_sun', rays: 'sky_rays', moon: 'sky_moon', moonLit: 'sky_moon_lit',
-		clouds: 'sky_clouds', ring: 'sky_ring', flash: 'sky_flash', bolt: 'sky_bolt', sock: 'sky_sock',
+		land: 'sky_land', turfFx: 'sky_turf_fx', turfA: 'sky_turf_a', turfB: 'sky_turf_b',
+		clouds: 'sky_clouds', halo: 'sky_halo', ring: 'sky_ring', flash: 'sky_flash', bolt: 'sky_bolt', sock: 'sky_sock',
 		cl: 'sky_cl', li: 'sky_li', lt: 'sky_lt', cr: 'sky_cr', ri: 'sky_ri', rt: 'sky_rt',
 		back: 'sky_back', front: 'sky_front', wrapper: 'wrapper'
 	};
@@ -398,12 +405,16 @@ var Sky = (function () {
 		var L = LAYOUTS[cover] || [];
 		for (var i = 0; i < L.length; i++) {
 			var c = L[i];
-			var u = mk('use', {}, g);
-			try { u.setAttributeNS(XLINK, 'xlink:href', '#sky_cloud'); } catch (e) {}
-			u.setAttribute('href', '#sky_cloud');
-			cloudList.push({ el: u, x: c.x, y: c.y, s: c.s, k: c.k, back: !!c.back, w: 40 * c.s, h: 20 * c.s });
+			cloudList.push({ el: cloudUse(g), twin: cover === 'ovc' ? null : cloudUse(g),
+				x: c.x, y: c.y, s: c.s, k: c.k, back: !!c.back, w: 40 * c.s, h: 20 * c.s });
 		}
 		moveClouds(0);
+	}
+	function cloudUse(g) {
+		var u = mk('use', {}, g);
+		try { u.setAttributeNS(XLINK, 'xlink:href', '#sky_cloud'); } catch (e) {}
+		u.setAttribute('href', '#sky_cloud');
+		return u;
 	}
 
 	/* ================================================================== *
@@ -420,6 +431,10 @@ var Sky = (function () {
 			var c = cloudList[i];
 			put(c.el, 'fill', 'url(#' + fill + ')');
 			put(c.el, 'opacity', ovc ? (c.back ? 0.82 : 0.95) : 0.96);
+			if (c.twin) {
+				put(c.twin, 'fill', 'url(#' + fill + ')');
+				put(c.twin, 'opacity', 0.96);
+			}
 		}
 	}
 
@@ -431,8 +446,9 @@ var Sky = (function () {
 			var c = cloudList[i];
 			c.x += sp * c.k * dt;
 			if (ovc) { if (c.x > 100) c.x -= OVC_SPAN; }
-			else if (c.x > 102) c.x -= 102 + c.w + 30;
+			else if (c.x >= LANE) c.x -= LANE;
 			put(c.el, 'transform', 'translate(' + fx(c.x, 1) + ',' + fx(c.y, 1) + ') scale(' + c.s + ')');
+			if (c.twin) put(c.twin, 'transform', 'translate(' + fx(c.x - LANE, 1) + ',' + fx(c.y, 1) + ') scale(' + c.s + ')');
 		}
 	}
 
@@ -470,7 +486,7 @@ var Sky = (function () {
 			shown(el.moon, !day);
 			var body = day ? el.sun : el.moon;
 			put(body, 'transform', 'translate(' + px + ',' + py + ')');
-			put(body, 'opacity', ovc ? 0.16 : 1);
+			put(body, 'opacity', ovc ? 0.4 : 1);
 			if (!day) put(el.moonLit, 'd', moonPath(4.3, d.today ? d.today.moon : -1));
 			else {
 				/* a low sun goes orange */
@@ -478,12 +494,18 @@ var Sky = (function () {
 				put(el.rays, 'stroke', low > 0.5 ? '#ff9f3a' : '#ffc93c');
 			}
 
-			/* under overcast only an outline shows where it is */
+			/* Under overcast the disc is dimmed behind the clouds, and over them a
+			 * glow and a dashed outline show where it is - bright enough to find
+			 * across the room. */
+			shown(el.halo, ovc);
+			put(el.halo, 'cx', px);
+			put(el.halo, 'cy', py);
+			put(el.halo, 'fill', day ? 'url(#skyGHaloSun)' : 'url(#skyGHaloMoon)');
 			shown(el.ring, ovc);
 			put(el.ring, 'cx', px);
 			put(el.ring, 'cy', py);
-			put(el.ring, 'stroke', day ? '#ffd76c' : '#ece5bf');
-			put(el.ring, 'stroke-opacity', day ? 0.75 : 0.6);
+			put(el.ring, 'stroke', day ? '#ffe08a' : '#f3ecc8');
+			put(el.ring, 'stroke-opacity', day ? 1 : 0.92);
 		} else {
 			/* no sunrise or sunset in the file: the arc, and nothing on it */
 			day = !(data && String(data.code || '').indexOf('_n') !== -1);
@@ -491,6 +513,7 @@ var Sky = (function () {
 			put(el.arcRest, 'd', arcPath(0, 1));
 			shown(el.sun, false);
 			shown(el.moon, false);
+			shown(el.halo, false);
 			shown(el.ring, false);
 			shown(el.cl, false);
 			shown(el.cr, false);
@@ -678,8 +701,12 @@ var Sky = (function () {
 	 * shower falls only under its cloud. */
 	function respawn(d) {
 		var c = cloudList.length ? cloudList[Math.floor(rnd() * cloudList.length)] : null;
-		if (c && c.x > -c.w * 0.6 && c.x < 96) {
-			d.x = geo.ox + c.x + 5 * c.s + rnd() * (c.w - 10 * c.s);
+		var xs = [];                                     /* the copies of it that are on screen */
+		if (c && c.x > -c.w * 0.6 && c.x < 96) xs.push(c.x);
+		if (c && c.twin && c.x - LANE > -c.w * 0.6) xs.push(c.x - LANE);
+		if (xs.length) {
+			var x = xs[Math.floor(rnd() * xs.length)];
+			d.x = geo.ox + x + 5 * c.s + rnd() * (c.w - 10 * c.s);
 			d.y = geo.oy + c.y + c.h * 0.82;
 		} else {
 			d.x = geo.ox + rnd() * 100;
@@ -943,7 +970,8 @@ var Sky = (function () {
 		['-sn', 'Light snow'], ['sn', 'Snow'], ['+sn', 'Heavy snow'],
 		['ra_sn', 'Sleet'], ['ts', 'Storm'],
 		['w0', 'Wind 0'], ['w4', 'Wind 4 m/s'], ['w10', 'Wind 10 m/s'],
-		['flip', 'Day / night'], ['play', 'Play a day']
+		['flip', 'Day / night'], ['play', 'Play a day'],
+		['frost', 'Frost -8°'], ['heat', 'Heat +28°']
 	];
 
 	var FALLS = {
@@ -983,7 +1011,7 @@ var Sky = (function () {
 		var ok = false;
 		guard('preview', function () {
 			if (key === 'real') { endPreview('asked'); ok = true; return; }
-			var p = pv || { cover: null, precip: null, level: 1, wind: null, time: null, playFrom: 0, playT: 0 };
+			var p = pv || { cover: null, precip: null, level: 1, wind: null, time: null, playFrom: 0, playT: 0, temp: null };
 			if (key === 'clear' || key === 'few' || key === 'some' || key === 'ovc') {
 				p.cover = key;
 				p.precip = 'none';
@@ -997,9 +1025,12 @@ var Sky = (function () {
 			} else if (key === 'play') {
 				if (p.time === 'play') p.time = null;
 				else { p.time = 'play'; p.playFrom = realMinutes(); p.playT = t; }
+			} else if (key === 'frost' || key === 'heat') {
+				p.temp = key === 'frost' ? -8 : 28;  /* the turf only; the numbers stay real */
 			} else {
 				return;
 			}
+			if (!pv) waterSaved = gWater;           /* the real level, back when it ends */
 			p.key = key;
 			p.until = Date.now() + PREVIEW_MS;
 			pv = p;
@@ -1016,6 +1047,8 @@ var Sky = (function () {
 		if (pvTimer) { clearTimeout(pvTimer); pvTimer = null; }
 		if (!pv) return;
 		pv = null;
+		if (waterSaved !== null) { gWater = waterSaved; waterSaved = null; }
+		turfKey = '';
 		LOG('sky: preview over (' + why + '), real weather');
 		refresh();
 	}
@@ -1092,6 +1125,260 @@ var Sky = (function () {
 		}
 	}
 
+	/* ================================================================== *
+	 *  the turf under the windsock                                       *
+	 * ================================================================== *
+	 * A flat strip of grass with a thin edge of soil and a concrete footing for
+	 * the mast. It follows the weather. By temperature (the thresholds of her
+	 * wardrobe): frozen at 0 and below, muted when cool, green when mild, lush
+	 * with a few flowers when hot. Rain floods it: the water rises over ~10 min,
+	 * rings spread where drops land, and once it is deep it runs off both ends
+	 * into puddles either side; it drains over about an hour after. Below 0 the
+	 * water is a sheet of ice. Lying snow caps it. Darker at night.
+	 * The shape is rebuilt only when what it shows changes - a few times an hour
+	 * in real weather; only the rings, the run-off and the frost glints move.
+	 * A preview fills and drains in seconds, and the real level comes back when
+	 * it ends.                                                                */
+	var TURF = { x0: 39, x1: 61, h: 1.25, soil: 1.3 };
+	var TURF_TOP = 43.3 - TURF.h;
+	var GRASS = {                             /* top, bottom, blades */
+		frozen: ['#dcecf4', '#7f9fb0', '#f4fbff'],
+		cool:   ['#93a96b', '#4b5e34', '#b3c88a'],
+		mild:   ['#7fbf5c', '#3d6d2d', '#a6dc84'],
+		hot:    ['#8fe05a', '#3a8a26', '#b8f08c']
+	};
+	var FILL_REAL = [1 / 900, 1 / 600, 1 / 360], DRAIN_REAL = 1 / 3600;   /* per second, by strength */
+	var FILL_PV = [1 / 14, 1 / 9, 1 / 6], DRAIN_PV = 1 / 30;
+	var gWater = 0, waterSeeded = false, waterSaved = null;
+	var turfKey = '', pool = null, turfSides = [], ripples = [], ripIn = 0;
+	var trickL = null, trickR = null, sparks = [];
+
+	function turfU(x) { return (x - 50) / ((TURF.x1 - TURF.x0) / 2); }
+	function turfTop(x) {
+		var u = turfU(x);
+		if (u <= -1 || u >= 1) return 43.3;
+		return 43.3 - TURF.h * Math.sqrt(1 - Math.pow(Math.abs(u), 6));
+	}
+	function grassState(tc) { return tc <= 0 ? 'frozen' : (tc < 10 ? 'cool' : (tc < 23 ? 'mild' : 'hot')); }
+	function groundTemp() {
+		if (pv && typeof pv.temp === 'number') return pv.temp;
+		return (data && typeof data.temp === 'number' && isFinite(data.temp)) ? data.temp : 10;
+	}
+	function dim(hex, k) {
+		var n = parseInt(hex.slice(1), 16);
+		return 'rgb(' + Math.round(((n >> 16) & 255) * k) + ',' + Math.round(((n >> 8) & 255) * k) + ',' + Math.round((n & 255) * k) + ')';
+	}
+	function waterSpan() {                    /* the pool widens and deepens as it fills */
+		var half = 6 + 3.8 * gWater;
+		return { xa: 50 - half, xb: 50 + half, ys: TURF_TOP - (0.3 + 1.25 * gWater) };
+	}
+
+	function buildTurf() {
+		var g = el.turfFx;
+		if (!g) return;
+		for (var i = 0; i < 12; i++) {
+			ripples.push({ el: mk('ellipse', { rx: 0.1, ry: 0.05, fill: 'none', stroke: '#d8ecff', 'stroke-width': 0.16, opacity: 0 }, g),
+				age: 1, on: false, x: 50, y: 42 });
+		}
+		var trick = { fill: 'none', stroke: '#7fb2f0', 'stroke-width': 0.3, 'stroke-linecap': 'round', 'stroke-dasharray': '0.5 0.45', opacity: 0 };
+		trickL = mk('path', trick, g);
+		trickR = mk('path', trick, g);
+		var SP = [41.6, 45.3, 52.8, 57.9];
+		for (var j = 0; j < SP.length; j++) {
+			sparks.push({ el: mk('circle', { cx: SP[j], cy: fx(turfTop(SP[j]) - 0.2, 2), r: 0.2, fill: '#ffffff', opacity: 0 }, g), ph: j * 1.9 });
+		}
+	}
+
+	function drawTurf(day) {
+		var g = el.land;
+		if (!g) return;
+		var st = grassState(groundTemp()), frozen = st === 'frozen';
+		var snowCap = Math.min(1.1, gSnow * 0.45);
+		var key = st + (day ? 'd' : 'n') + Math.round(snowCap * 20) + '/' + Math.round(gWater * 20) + (gWet > 0.3 ? 'w' : '');
+		if (key === turfKey) return;
+		turfKey = key;
+		var K = day ? 1 : 0.45, C = GRASS[st];
+		put(el.turfA, 'stop-color', dim(C[0], K));
+		put(el.turfB, 'stop-color', dim(C[1], K));
+
+		while (g.firstChild) g.removeChild(g.firstChild);
+		var x, i, d, u, pts = [];
+		for (x = TURF.x0; x <= TURF.x1 + 0.001; x += 0.5) pts.push([x, turfTop(x)]);
+
+		/* a thin edge of soil under the horizon */
+		d = 'M' + (TURF.x0 + 0.4) + ',43.2';
+		for (x = TURF.x0 + 0.4; x <= TURF.x1 - 0.4 + 0.001; x += 0.5) {
+			u = turfU(x);
+			d += ' L' + fx(x, 2) + ',' + fx(43.2 + TURF.soil * Math.sqrt(Math.max(0, 1 - Math.pow(Math.abs(u), 6))), 2);
+		}
+		mk('path', { d: d + ' L' + (TURF.x1 - 0.4) + ',43.2 Z', fill: day ? 'url(#skyGSoilDay)' : 'url(#skyGSoilNight)' }, g);
+
+		/* the grass, a little darker when soaked */
+		d = 'M' + pts[0][0] + ',43.4';
+		for (i = 0; i < pts.length; i++) d += ' L' + fx(pts[i][0], 2) + ',' + fx(pts[i][1], 2);
+		d += ' L' + pts[pts.length - 1][0] + ',43.4 Z';
+		mk('path', { d: d, fill: 'url(#skyGTurf)' }, g);
+		if (gWet > 0.3 && !frozen) mk('path', { d: d, fill: '#0a1a10', opacity: 0.18 }, g);
+
+		/* water on top - a flat surface, rounded where it meets the grass - and
+		 * the overflow lying on the ground either side; ice below 0 */
+		pool = null;
+		turfSides = [];
+		if (gWater > 0.03) {
+			var w = waterSpan();
+			var wet = frozen ? (day ? '#d6ecfa' : '#6f8796') : (day ? '#4a8ae0' : '#2c548c');
+			var shine = frozen ? '#ffffff' : (day ? '#cfe6ff' : '#8fb0d8');
+			d = 'M' + fx(w.xa, 2) + ',' + fx(turfTop(w.xa), 2) +
+				' Q' + fx(w.xa + 0.5, 2) + ',' + fx(w.ys, 2) + ' ' + fx(w.xa + 1.4, 2) + ',' + fx(w.ys, 2) +
+				' L' + fx(w.xb - 1.4, 2) + ',' + fx(w.ys, 2) +
+				' Q' + fx(w.xb - 0.5, 2) + ',' + fx(w.ys, 2) + ' ' + fx(w.xb, 2) + ',' + fx(turfTop(w.xb), 2);
+			for (x = w.xb; x >= w.xa - 0.001; x -= 0.5) d += ' L' + fx(x, 2) + ',' + fx(turfTop(x) + 0.05, 2);
+			mk('path', { d: d + ' Z', fill: wet, opacity: frozen ? 0.92 : 0.88 }, g);
+			if (frozen) {
+				mk('path', { d: 'M' + fx(w.xa + 2, 2) + ',' + fx(w.ys + 0.15, 2) + ' L' + fx(w.xa + 6, 2) + ',' + fx(w.ys + 0.15, 2) +
+					' M' + fx(w.xb - 5, 2) + ',' + fx(w.ys + 0.25, 2) + ' l2,0', stroke: '#ffffff', 'stroke-width': 0.2,
+					'stroke-linecap': 'round', opacity: day ? 0.9 : 0.5 }, g);
+				mk('path', { d: 'M' + fx(w.xa + 7, 2) + ',' + fx(w.ys + 0.1, 2) + ' l0.8,0.35 l0.9,-0.2 l0.7,0.4',
+					stroke: day ? '#9fc3d8' : '#4d6372', 'stroke-width': 0.12, fill: 'none' }, g);
+			} else {
+				mk('line', { x1: fx(w.xa + 1.6, 2), y1: fx(w.ys + 0.12, 2), x2: fx(w.xb - 1.6, 2), y2: fx(w.ys + 0.12, 2),
+					stroke: shine, 'stroke-width': 0.2, 'stroke-linecap': 'round', opacity: 0.8 }, g);
+				pool = w;
+			}
+			var spread = 11 * clamp((gWater - 0.4) / 0.6, 0, 1);
+			if (spread > 0.3) {
+				var edges = [[TURF.x0 + 1.2 - spread, TURF.x0 + 1.2], [TURF.x1 - 1.2, TURF.x1 - 1.2 + spread]];
+				for (i = 0; i < 2; i++) {
+					var cx = (edges[i][0] + edges[i][1]) / 2, rx = (edges[i][1] - edges[i][0]) / 2 + 0.4;
+					mk('ellipse', { cx: fx(cx, 2), cy: 43.1, rx: fx(rx, 2), ry: 0.5, fill: wet, opacity: frozen ? 0.9 : 0.85 }, g);
+					mk('line', { x1: fx(cx - rx * 0.7, 2), y1: 42.78, x2: fx(cx + rx * 0.7, 2), y2: 42.78, stroke: shine,
+						'stroke-width': 0.16, 'stroke-linecap': 'round', opacity: 0.7 }, g);
+					if (!frozen) turfSides.push({ xa: cx - rx * 0.8, xb: cx + rx * 0.8, y: 42.85 });
+				}
+			}
+		}
+
+		/* blades - stiff and white when frozen, short and dull when cool, tall
+		 * when hot - standing up out of the water; gone under snow */
+		if (snowCap < 0.5) {
+			var TUFTS = [-0.86, -0.62, -0.38, -0.14, 0.14, 0.38, 0.62, 0.86], blades = '';
+			var tall = st === 'hot' ? 1.55 : (st === 'cool' ? 0.85 : (frozen ? 0.95 : 1.15));
+			var lean = frozen ? 0.12 : 0.38;
+			for (i = 0; i < TUFTS.length; i++) {
+				x = 50 + TUFTS[i] * (TURF.x1 - TURF.x0) / 2;
+				if (Math.abs(x - 50) < 1.8) continue;               /* the footing is there */
+				var y = turfTop(x) + 0.15;
+				blades += 'M' + fx(x - 0.25, 2) + ',' + fx(y, 2) + ' l' + fx(-lean, 2) + ',' + fx(-tall * 0.75, 2) +
+					' M' + fx(x, 2) + ',' + fx(y, 2) + ' l0,' + fx(-tall, 2) +
+					' M' + fx(x + 0.25, 2) + ',' + fx(y, 2) + ' l' + fx(lean, 2) + ',' + fx(-tall * 0.7, 2) + ' ';
+			}
+			mk('path', { d: blades, stroke: dim(C[2], day ? 1 : 0.55), 'stroke-width': frozen ? 0.2 : 0.24, 'stroke-linecap': 'round', fill: 'none' }, g);
+			if (st === 'hot') {
+				var FL = [[42.6, '#ffe066'], [47.1, '#ffffff'], [55.4, '#ffe066'], [58.6, '#ffffff']];
+				for (i = 0; i < FL.length; i++) {
+					var fy = fx(turfTop(FL[i][0]) - 1.0, 2);
+					mk('circle', { cx: FL[i][0], cy: fy, r: 0.55, fill: dim(FL[i][1], day ? 1 : 0.5) }, g);
+					mk('circle', { cx: FL[i][0], cy: fy, r: 0.2, fill: day ? '#f29b2a' : '#7a4e15' }, g);
+				}
+			}
+		}
+
+		/* a white cap while snow lies */
+		if (snowCap > 0.04) {
+			d = '';
+			for (i = 0; i < pts.length; i++) {
+				u = turfU(pts[i][0]);
+				d += (i ? ' L' : 'M') + fx(pts[i][0], 2) + ',' + fx(pts[i][1] - snowCap * (0.55 + 0.45 * (1 - u * u)), 2);
+			}
+			for (i = pts.length - 1; i >= 0; i--) d += ' L' + fx(pts[i][0], 2) + ',' + fx(pts[i][1] + 0.25, 2);
+			mk('path', { d: d + ' Z', fill: '#eef4ff' }, g);
+		}
+
+		/* the mast's concrete footing, on the water or the snow if there is any */
+		var ty = Math.min(turfTop(50), gWater > 0.03 ? waterSpan().ys + 0.3 : 99) - snowCap * 0.6;
+		mk('rect', { x: 48.7, y: fx(ty - 0.9, 2), width: 2.6, height: 1.1, rx: 0.25, fill: day ? '#aab0b8' : '#5d636b' }, g);
+	}
+
+	/* The water level follows the rain. A preview fills and drains in seconds;
+	 * the first real data after a start finds it already wet if it is raining. */
+	function water(gdt) {
+		var raining = cur.precip === 'rain' || cur.precip === 'sleet';
+		if (!pv && !waterSeeded && hasData()) {
+			waterSeeded = true;
+			if (raining) gWater = 0.7;
+		}
+		var lvl = clamp(num(cur.level, 1), 0, 2);
+		if (raining) gWater = Math.min(1, gWater + (pv ? FILL_PV : FILL_REAL)[lvl] * gdt);
+		else gWater = Math.max(0, gWater - (pv ? DRAIN_PV : DRAIN_REAL) * gdt);
+		return raining;
+	}
+
+	/* every frame (run) or once a minute (still): the level, then what moves */
+	function turfFrame(adt, gdt, run) {
+		if (!el.land) return;
+		var raining = water(gdt);
+		drawTurf(isDay);
+		var frozen = grassState(groundTemp()) === 'frozen';
+		var i, q;
+
+		/* rings where drops land, on the strip or a puddle, by width */
+		if (run && pool && raining && adt > 0) {
+			ripIn -= adt;
+			if (ripIn <= 0) {
+				var r = ripples[0];
+				for (i = 1; i < ripples.length; i++) if (ripples[i].age > r.age) r = ripples[i];
+				var surf = [{ xa: pool.xa + 1.6, xb: pool.xb - 1.6, y: pool.ys + 0.12 }].concat(turfSides), tot = 0, m;
+				for (m = 0; m < surf.length; m++) tot += surf[m].xb - surf[m].xa;
+				var pick = rnd() * tot;
+				for (m = 0; m < surf.length - 1 && pick > surf[m].xb - surf[m].xa; m++) pick -= surf[m].xb - surf[m].xa;
+				r.age = 0;
+				r.x = surf[m].xa + rnd() * (surf[m].xb - surf[m].xa);
+				r.y = surf[m].y;
+				ripIn = (1 / [3, 7, 14][clamp(num(cur.level, 1), 0, 2)]) * (0.5 + rnd());
+			}
+		}
+		for (i = 0; i < ripples.length; i++) {
+			q = ripples[i];
+			if (!run || q.age >= 0.7) {
+				if (q.on) { put(q.el, 'opacity', 0); q.on = false; }
+				q.age = Math.max(q.age, 0.7);
+				continue;
+			}
+			q.age += adt;
+			var k = clamp(q.age / 0.7, 0, 1);
+			q.on = true;
+			put(q.el, 'cx', fx(q.x, 2));
+			put(q.el, 'cy', fx(q.y, 2));
+			put(q.el, 'rx', fx(0.2 + 1.6 * k, 2));
+			put(q.el, 'ry', fx(0.05 + 0.3 * k, 2));
+			put(q.el, 'opacity', fx(0.85 * (1 - k), 2));
+		}
+
+		/* deep water runs off both ends */
+		var flow = pool && gWater > 0.45 ? clamp((gWater - 0.45) / 0.3, 0, 1) : 0;
+		if (flow > 0) {
+			put(trickL, 'd', 'M' + fx(pool.xa + 0.3, 2) + ',' + fx(turfTop(pool.xa) - 0.1, 2) + ' Q' + fx(pool.xa - 0.6, 2) + ',' +
+				fx(turfTop(pool.xa) + 0.2, 2) + ' ' + fx(pool.xa - 0.9, 2) + ',43.6');
+			put(trickR, 'd', 'M' + fx(pool.xb - 0.3, 2) + ',' + fx(turfTop(pool.xb) - 0.1, 2) + ' Q' + fx(pool.xb + 0.6, 2) + ',' +
+				fx(turfTop(pool.xb) + 0.2, 2) + ' ' + fx(pool.xb + 0.9, 2) + ',43.6');
+			if (run) {
+				put(trickL, 'stroke-dashoffset', fx(-t * 2.5, 1));
+				put(trickR, 'stroke-dashoffset', fx(-t * 2.5, 1));
+			}
+		}
+		put(trickL, 'opacity', fx(0.85 * flow, 2));
+		put(trickR, 'opacity', fx(0.85 * flow, 2));
+
+		/* frost glints on frozen grass, a slow twinkle that needs few writes */
+		var glint = frozen && gSnow * 0.45 < 0.5;
+		if (!run || frameNo % 3 === 0) {
+			for (i = 0; i < sparks.length; i++) {
+				var o = glint && run ? Math.max(0, Math.sin(t * 1.7 + sparks[i].ph)) * (isDay ? 0.95 : 0.6) : (glint ? 0.5 : 0);
+				put(sparks[i].el, 'opacity', fx(o, 2));
+			}
+		}
+	}
+
 	function step(dt) {
 		t += dt;
 		frameNo++;
@@ -1107,6 +1394,7 @@ var Sky = (function () {
 		else if (frameNo % 3 === 0) twinkle();      /* a slow twinkle needs few writes */
 		lightning(dt, cur.storm);
 		precipFrame(dt, dt);
+		turfFrame(dt, dt, true);
 	}
 
 	/* The quiet-hours frame: the sky as it is now, nothing moving. The ground
@@ -1124,6 +1412,7 @@ var Sky = (function () {
 		if (!isDay) twinkle();
 		lightning(0, false);
 		precipFrame(0, gdt);
+		turfFrame(0, gdt, false);
 	}
 
 	/* everything the scene or the data decides, then the loop */
@@ -1146,6 +1435,7 @@ var Sky = (function () {
 			buildStars();
 			buildRays();
 			buildSock();
+			buildTurf();
 			canvasInit();
 			on(window, 'resize', function () {
 				guard('resize', function () { fitDirty = true; layoutDirty = true; if (mode === 'still') still(false); });
@@ -1193,6 +1483,7 @@ var Sky = (function () {
 			level: cur.level, storm: cur.storm, wind: wind, day: isDay,
 			preview: pv ? pv.key : '', until: pv ? pv.until : 0,
 			drops: parts.length, canopy: !!canopy, canvas: !!cv,
+			turf: grassState(groundTemp()), water: Math.round(gWater * 1000) / 1000, pool: !!pool, puddles: turfSides.length,
 			faults: faultCount, dead: dead, lastFault: lastFault
 		};
 	}

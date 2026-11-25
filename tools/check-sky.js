@@ -482,16 +482,41 @@ ok('  sun on the arc, left corner sunrise, right sunset',
 	ELS.sky_li.className === 'ci rise' && ELS.sky_ri.className === 'ci set');
 var sunT = ELS.sky_sun.attrs.transform, fNoon = (720 - RISE) / (SET - RISE), pN = Sky.onArc(fNoon);
 ok('  the sun sits where where() says', sunT === 'translate(' + pN.x.toFixed(2) + ',' + pN.y.toFixed(2) + ')', sunT);
-ok('  two clouds in the svg, drifting', ELS.sky_clouds.children.length === 2);
+ok('  two clouds in the svg, each with its twin a screen behind', ELS.sky_clouds.children.length === 4, ELS.sky_clouds.children.length + ' uses');
 ok('  the canvases stay hidden: nothing to draw', back.style.display !== 'block' && front.style.display !== 'block');
+
+/* One cloud: its twin starts in on the left as it starts out on the right.
+ * Over two and a half crossings there must never be less than a whole cloud
+ * on screen - no stretch of clear sky on a partly cloudy day. */
+paint('bkn_d', 0.25, 4.2);
+advance(200);
+ok('one cloud: the cloud and its twin in the svg', Sky.status().cover === 'few' && ELS.sky_clouds.children.length === 2,
+	Sky.status().cover + ', ' + ELS.sky_clouds.children.length + ' uses');
+var CW = 40 * 0.6, least = Infinity, wrapped = false, lastX = null;
+for (var step = 0; step < 300; step++) {
+	advance(500);
+	var seen = 0;
+	ELS.sky_clouds.children.forEach(function (u, i) {
+		var m = /translate\(([-\d.]+),/.exec(u.attrs.transform || '');
+		if (!m) return;
+		var x = +m[1];
+		if (i === 0) { if (lastX !== null && x < lastX) wrapped = true; lastX = x; }
+		seen += Math.max(0, Math.min(100, x + CW) - Math.max(0, x));
+	});
+	least = Math.min(least, seen);
+}
+ok('  it wrapped round at least once in the run', wrapped);
+ok('  a whole cloud is always on screen', least >= CW - 0.3, 'least ' + least.toFixed(2) + ' of ' + CW);
 
 paint('ovc_ra', 1, 6);
 advance(2000);
 st = Sky.status();
 ok('rain: overcast, 95 drops, 20 fps', st.cover === 'ovc' && st.precip === 'rain' && st.level === 1 && st.drops === 95 && st.fps === 20,
 	st.cover + ' ' + st.precip + st.level + ' n' + st.drops + ' ' + st.fps + 'fps');
-ok('  ten clouds, the sun dimmed to 0.16 behind them, the ring shown',
-	ELS.sky_clouds.children.length === 10 && ELS.sky_sun.attrs.opacity === '0.16' && ELS.sky_ring.style.display === '');
+ok('  ten clouds, the sun dimmed to 0.4 behind them, the glow and the ring over them on the sun',
+	ELS.sky_clouds.children.length === 10 && ELS.sky_sun.attrs.opacity === '0.4' &&
+	ELS.sky_halo.style.display === '' && ELS.sky_ring.style.display === '' &&
+	ELS.sky_halo.attrs.cx === ELS.sky_ring.attrs.cx && ELS.sky_halo.attrs.fill === 'url(#skyGHaloSun)');
 ok('  the canvases are shown and drawn on', back.style.display === 'block' && front.style.display === 'block' && (back.ctx.calls.stroke || 0) > 0);
 ok('  backing store from the canvas\'s own rect, devicePixelRatio 3 capped at 2', back.width === 720 && back.height === 1280,
 	back.width + 'x' + back.height);
@@ -646,6 +671,37 @@ ok('#wrapper hidden: the rain canvases hide too', back.style.display === 'none')
 ELS.wrapper.className = '';
 advance(500);
 ok('  and come back with it', back.style.display === 'block');
+
+/* ---- the turf under the windsock ---- */
+section('the turf under the windsock');
+var land = ELS.sky_land, tfx = ELS.sky_turf_fx;
+function liveRings() { return tfx.children.filter(function (n) { return n.tagName === 'ellipse' && +n.attrs.opacity > 0; }).length; }
+function runoff() { var p = tfx.children.filter(function (n) { return n.tagName === 'path'; })[0]; return p ? +p.attrs.opacity : 0; }
+ok('the turf is drawn: soil, grass, blades and the footing', land.children.length >= 4 && countDeep(land, 'rect') === 1, land.children.length + ' parts');
+ok('  4 degrees is the muted, cool grass', Sky.status().turf === 'cool', Sky.status().turf);
+var w0 = Sky.status().water;
+advance(60000);
+var w1 = Sky.status().water;
+ok('  real rain raises the water slowly: at most a tenth in a minute at moderate', w1 > w0 && w1 - w0 <= 0.101, w0 + ' -> ' + w1);
+Sky.preview('+ra');
+advance(8000);
+st = Sky.status();
+ok('a heavy-rain preview floods it in seconds: deep water on the strip and a puddle either side',
+	st.water >= 0.99 && st.pool && st.puddles === 2, st.water + ' water, ' + st.puddles + ' puddles');
+ok('  rings spread on the water, and it runs off both ends', liveRings() > 0 && runoff() > 0, liveRings() + ' rings, run-off ' + runoff());
+Sky.preview('frost');
+advance(1000);
+st = Sky.status();
+ok('frost: the grass freezes and the water is ice - no pool to ring, no puddles to ring',
+	st.turf === 'frozen' && !st.pool && st.puddles === 0, st.turf + ' pool ' + st.pool);
+ok('  the rings have died away and nothing runs off ice', liveRings() === 0 && runoff() === 0);
+Sky.preview('heat');
+Sky.preview('clear');
+advance(1000);
+ok('heat: lush grass with four flowers', Sky.status().turf === 'hot' && countDeep(land, 'circle') === 8, countDeep(land, 'circle') + ' circles');
+Sky.preview('real');
+ok('the preview over: the real water level is back', Math.abs(Sky.status().water - w1) < 0.02, w1 + ' -> ' + Sky.status().water);
+ok('  and the real temperature with it', Sky.status().turf === 'cool');
 
 /* ---- nonsense in, no NaN out ---- */
 badAttrs.length = 0;
